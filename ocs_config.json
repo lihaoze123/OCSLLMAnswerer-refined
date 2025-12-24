@@ -1,0 +1,16 @@
+[
+    {
+        "name": "AI题库",
+        "homepage": "http://localhost:5000",
+        "url": "http://localhost:5000/search",
+        "method": "post",
+        "type": "GM_xmlhttpRequest",
+        "contentType": "json",
+        "data": {
+            "title": "${title}",
+            "options": "${options}",
+            "type": "${type}"
+        },
+        "handler": "return (res) => res.code === 1 ? [res.question, res.answer, {ai: res.analysis}] : undefined"
+    }
+]
