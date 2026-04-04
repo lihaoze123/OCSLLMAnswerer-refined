@@ -27,25 +27,35 @@ client = OpenAI(
     base_url=base_url if base_url else None
 )
 
+
 def log_info(msg):
-    print(f"{Fore.CYAN}[INFO] {datetime.now().strftime('%H:%M:%S')} {Style.RESET_ALL}{msg}")
+    print(
+        f"{Fore.CYAN}[INFO] {datetime.now().strftime('%H:%M:%S')} {Style.RESET_ALL}{msg}")
+
 
 def log_success(msg):
-    print(f"{Fore.GREEN}[SUCCESS] {datetime.now().strftime('%H:%M:%S')} {Style.RESET_ALL}{msg}")
+    print(
+        f"{Fore.GREEN}[SUCCESS] {datetime.now().strftime('%H:%M:%S')} {Style.RESET_ALL}{msg}")
+
 
 def log_error(msg):
-    print(f"{Fore.RED}[ERROR] {datetime.now().strftime('%H:%M:%S')} {Style.RESET_ALL}{msg}")
+    print(
+        f"{Fore.RED}[ERROR] {datetime.now().strftime('%H:%M:%S')} {Style.RESET_ALL}{msg}")
+
 
 def log_request(title, options, q_type):
-    print(f"\n{Fore.YELLOW}新的请求 [{datetime.now().strftime('%H:%M:%S')}] {Style.RESET_ALL}")
+    print(
+        f"\n{Fore.YELLOW}新的请求 [{datetime.now().strftime('%H:%M:%S')}] {Style.RESET_ALL}")
     print(f"{Fore.BLUE}题目:{Style.RESET_ALL} {title}")
     print(f"{Fore.BLUE}类型:{Style.RESET_ALL} {q_type}")
     if options:
         print(f"{Fore.BLUE}选项:{Style.RESET_ALL} \n{options.strip()}")
 
+
 def log_response(answer, analysis):
     print(f"{Fore.MAGENTA}答案:{Style.RESET_ALL} {answer}")
     print(f"{Fore.MAGENTA}解析:{Style.RESET_ALL} {analysis}")
+
 
 # 题型映射
 TYPE_MAPPING = {
@@ -56,13 +66,14 @@ TYPE_MAPPING = {
     "unknown": "未知类型"
 }
 
+
 def get_chatgpt_answer(title, options, original_type):
     """
     调用 ChatGPT 获取答案
     """
     # 转换题型为中文
     question_type = TYPE_MAPPING.get(original_type, original_type)
-    
+
     # 根据题型生成特定指令
     special_instruction = ""
     if original_type == "multiple":
@@ -92,7 +103,7 @@ def get_chatgpt_answer(title, options, original_type):
 """
     try:
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=os.getenv("OPENAI_MODEL", "gpt-3.5-turbo"),
             messages=[
                 {"role": "system", "content": "你是一个只输出 JSON 的专业做题助手。"},
                 {"role": "user", "content": prompt}
@@ -102,24 +113,29 @@ def get_chatgpt_answer(title, options, original_type):
         content = response.choices[0].message.content.strip()
 
         # 清洗逻辑
-        content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
-        if content.startswith("```json"): content = content[7:]
-        if content.endswith("```"): content = content[:-3]
+        content = re.sub(r'<think>.*?</think>', '',
+                         content, flags=re.DOTALL).strip()
+        if content.startswith("```json"):
+            content = content[7:]
+        if content.endswith("```"):
+            content = content[:-3]
         content = content.strip()
 
         match = re.search(r'\{.*\}', content, re.DOTALL)
         if match:
-             content = match.group(0)
-             
+            content = match.group(0)
+
         result = json.loads(content)
         return result
     except Exception as e:
         log_error(f"OpenAI 调用或解析失败: {e}")
         return {"answer": "未知", "analysis": "服务器处理出错"}
 
+
 @app.route('/', methods=['GET', 'HEAD'])
 def index():
     return jsonify({"code": 1, "msg": "OCS ChatGPT Server is running"}), 200
+
 
 @app.route('/search', methods=['POST'])
 def search_answer():
@@ -137,7 +153,8 @@ def search_answer():
 
         if options:
             # 清理选项：去除每一行的前后空格，并过滤掉空行，重新组合
-            options = "\n".join([line.strip() for line in options.split('\n') if line.strip()])
+            options = "\n".join([line.strip()
+                                for line in options.split('\n') if line.strip()])
 
         if not title:
             return jsonify({"code": 0, "msg": "题目为空"}), 400
@@ -147,10 +164,10 @@ def search_answer():
         log_request(title, options, display_type)
 
         result = get_chatgpt_answer(title, options, q_type)
-        
+
         answer = result.get("answer", "未知")
         analysis = result.get("analysis", "无解析")
-        
+
         log_response(answer, analysis)
 
         return jsonify({
@@ -163,6 +180,7 @@ def search_answer():
     except Exception as e:
         log_error(f"服务器内部错误: {e}")
         return jsonify({"code": 0, "msg": str(e)}), 500
+
 
 if __name__ == '__main__':
     log_info(f"服务启动在 http://0.0.0.0:5000")

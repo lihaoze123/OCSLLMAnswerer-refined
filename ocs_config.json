@@ -11,6 +11,6 @@
             "options": "${options}",
             "type": "${type}"
         },
-        "handler": "return (res) => res.code === 1 ? [res.question, res.answer, {ai: res.analysis}] : undefined"
+        "handler": "return (res) => { if (res.code === 1) { let answer = res.answer.trim(); if (answer === '正确') answer = '对'; if (answer === '错误') answer = '错'; return [res.question, answer]; } return undefined; }"
     }
 ]

@@ -17,7 +17,7 @@
 
 ## 直接运行
 
-下载Release包，解压后修改`.env`文件中的`OPENAI_API_KEY`和`OPENAI_BASE_URL`，然后运行`OCSAnswererWrapper.exe`即可。
+下载Release包，解压后复制 `.env.template` 为 `.env` ，并修改其中的`OPENAI_API_KEY`和`OPENAI_BASE_URL`，然后运行`OCSAnswererWrapper.exe`即可。
 
 ### 1. 克隆或下载本项目
 ```bash
@@ -32,19 +32,9 @@ pip install -r requirements.txt
 ```
 
 ### 3. 配置环境变量
-复制 `.env.example` 为 `.env` (如果不存在则新建)，并填入您的 API Key：
-```ini
-# .env 文件内容
-OPENAI_API_KEY=sk-您的密钥
-# 如果使用第三方代理或本地模型（如 Ollama），请配置 Base URL
-# OPENAI_BASE_URL=https://api.deepseek.com/v1
-```
+复制 `.env.template` 为 `.env` (如果不存在则新建)，并填入您的 API Key
 
-### 4. 启动服务器
-```bash
-python main.py
-```
-启动成功后，服务器默认运行在 `http://0.0.0.0:5000`。
+**启动成功后，服务器默认运行在 `http://0.0.0.0:5000`。**
 
 ## 🖥️ OCS 脚本配置
 
