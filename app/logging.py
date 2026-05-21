@@ -6,22 +6,67 @@ from rich.logging import RichHandler
 
 LOGGER_NAME = "ocs_answerer"
 BODY_PREVIEW_LIMIT = 500
+UVICORN_LOGGERS = ("uvicorn", "uvicorn.error")
+LITELLM_LOGGERS = ("LiteLLM", "litellm")
 logger = logging.getLogger(LOGGER_NAME)
 
 
 def configure_logging() -> None:
-    if logger.handlers:
-        return
+    handler = get_console_handler()
+    configure_logger(logger, handler=handler, level=logging.INFO, disabled=False)
+    configure_uvicorn_loggers(handler)
+    configure_litellm_loggers(handler)
 
+
+def get_console_handler() -> RichHandler:
+    for handler in logger.handlers:
+        if isinstance(handler, RichHandler):
+            return handler
     handler = RichHandler(
         log_time_format="%H:%M:%S",
         rich_tracebacks=True,
         show_path=False,
     )
     handler.setFormatter(logging.Formatter("%(message)s"))
-    logger.addHandler(handler)
-    logger.setLevel(logging.INFO)
-    logger.propagate = False
+    return handler
+
+
+def configure_logger(
+    target: logging.Logger,
+    *,
+    handler: logging.Handler,
+    level: int,
+    disabled: bool,
+) -> None:
+    target.handlers = [handler]
+    target.setLevel(level)
+    target.disabled = disabled
+    target.propagate = False
+
+
+def configure_uvicorn_loggers(handler: logging.Handler) -> None:
+    for name in UVICORN_LOGGERS:
+        configure_logger(
+            logging.getLogger(name),
+            handler=handler,
+            level=logging.INFO,
+            disabled=False,
+        )
+
+    access_logger = logging.getLogger("uvicorn.access")
+    access_logger.handlers = []
+    access_logger.disabled = True
+    access_logger.propagate = False
+
+
+def configure_litellm_loggers(handler: logging.Handler) -> None:
+    for name in LITELLM_LOGGERS:
+        configure_logger(
+            logging.getLogger(name),
+            handler=handler,
+            level=logging.ERROR,
+            disabled=False,
+        )
 
 
 def log_info(message: str) -> None:

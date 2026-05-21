@@ -11,7 +11,9 @@ Logging is console-based and implemented with Python standard-library
 consistent local operator messages.
 
 The logs are intended for a local OCS answer server operator watching requests,
-answers, and parsing failures in the terminal.
+answers, and parsing failures in the terminal. The recommended startup path
+(`uv run python main.py`) keeps console output in one Rich-styled format and
+disables Uvicorn access logs to avoid duplicate request lines.
 
 ---
 
@@ -32,6 +34,17 @@ Current helpers:
 
 There is no debug-level logging, file logging, JSON logging, or log rotation.
 
+`configure_logging()` also owns the known third-party console loggers used by
+the local runtime:
+
+- `uvicorn` and `uvicorn.error` use the same Rich handler for lifecycle/error
+  logs.
+- `uvicorn.access` is disabled; app request logs are the source of truth for OCS
+  request/answer flow.
+- `LiteLLM` and `litellm` are set to `ERROR` to suppress optional-provider
+  startup warnings such as missing `botocore`. Actual model call failures are
+  still logged by `app.llm` through `log_error()`.
+
 ---
 
 ## Structured Logging
@@ -50,6 +63,10 @@ logger.info(message)
 Keep new console logs behind the helper functions unless a route-specific
 multi-line display like `log_request()` is needed.
 
+When changing the root `main.py` Uvicorn startup path, keep
+`access_log=False` and `log_config=None` so Uvicorn does not reinstall its own
+default logging format over the app's logging setup.
+
 ---
 
 ## What to Log
@@ -62,6 +79,8 @@ multi-line display like `log_request()` is needed.
 - The selected answer and short analysis returned to OCS.
 - LiteLLM/provider API errors and model-response parse failures.
 - Unexpected route exceptions before returning a JSON error response.
+- Uvicorn server lifecycle/error messages, when emitted, through the same Rich
+  handler.
 
 ---
 
@@ -82,3 +101,6 @@ multi-line display like `log_request()` is needed.
   or forwarding logs.
 - Do not add noisy per-token or per-line logs around prompt construction unless
   debugging a specific issue.
+- Do not re-enable Uvicorn access logs in the recommended startup path unless
+  the app request logs are also redesigned; otherwise operators see duplicate
+  request lines in mismatched formats.
