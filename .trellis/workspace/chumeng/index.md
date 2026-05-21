@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 5
-- **Last Active**: 2026-05-21
+- **Total Sessions**: 6
+- **Last Active**: 2026-05-22
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~173 | Active |
+| `journal-1.md` | ~207 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 6 | 2026-05-22 | Chaoxing image download support | `7ea504b`, `683d8b0` | `master` |
 | 5 | 2026-05-21 | Support image question prompts | `edf723d`, `c51d02e` | `master` |
 | 4 | 2026-05-21 | Unify console logging | `1949142` | `master` |
 | 3 | 2026-05-21 | Fix OCS question bank search | `6ddeea4` | `master` |
