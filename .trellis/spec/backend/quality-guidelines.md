@@ -46,6 +46,11 @@ The configured quality gate is:
   current code removes `<think>...</think>`, trims fenced `json` blocks,
   extracts the first JSON object, and validates it as `ModelAnswer`.
 - Normalize options before prompting by trimming lines and dropping blank lines.
+- Keep prompt construction compatible with both text-only and image questions:
+  when `title`/`options` contain image URLs, attach them to the user message as
+  Chat Completions `image_url` content blocks; when no images are present, keep
+  the user message content as plain text. Do not download, cache, or OCR images
+  as part of prompt construction.
 - Parse `/search` request bodies manually as JSON from raw bytes so OCS payloads
   still work when the browser script sends JSON with
   `Content-Type: text/plain;charset=UTF-8`.
@@ -68,6 +73,10 @@ Minimum verification for code changes:
   the OCS request/response contract.
 - For parser changes, add tests for `<think>` cleanup, Markdown fence cleanup,
   surrounded JSON extraction, and malformed output fallback behavior.
+- For prompt changes involving images, add tests that image URLs are extracted
+  from both `title` and `options`, adjacent Chinese text is not captured as part
+  of the URL, duplicate image URLs are not repeated, and no-image requests still
+  build plain text user content.
 - For response-shape changes, update and review `ocs_config.json` and the README
   OCS handler together.
 
@@ -105,6 +114,11 @@ Minimum verification for code changes:
 
 - Request fields: `title: str`, `options: str = ""`,
   `type: QuestionType = "unknown"`.
+- Multimodal prompt behavior: image URLs embedded in `title` or `options` are
+  passed to LiteLLM as `{"type": "image_url", "image_url": {"url": "<url>"}}`
+  blocks in the user message content. The original text remains in the prompt.
+  No-image questions keep string user content for text-only provider
+  compatibility.
 - Internal `type` values: `single`, `multiple`, `judgement`, `completion`,
   `unknown`.
 - External OCS `type` input may be a known internal value, a common alias, a
@@ -135,6 +149,9 @@ Minimum verification for code changes:
   and parsed analysis.
 - Base: options are omitted or blank; service prompts with an empty options
   string and still returns a valid OCS shape.
+- Image: title/options contain `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, or
+  `.bmp` URLs; prompt construction preserves the text and adds image content
+  blocks for vision-capable models.
 - Compatibility: OCS sends JSON text as `text/plain;charset=UTF-8`; the service
   parses the raw body and validates it as `SearchRequest`.
 - Bad-but-tolerated: `type: "essay"` is accepted and handled as unknown so OCS
@@ -152,6 +169,8 @@ Minimum verification for code changes:
   fallback behavior.
 - LiteLLM gateway tests with mocked `completion()` and mocked JSON mode
   capability detection.
+- Prompt tests asserting no-image content remains a string and image-question
+  content includes the expected `image_url` blocks.
 
 ### 7. Wrong vs Correct
 
