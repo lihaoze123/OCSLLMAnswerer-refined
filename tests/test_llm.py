@@ -89,3 +89,32 @@ def test_litellm_completion_is_called_without_network(monkeypatch: Any) -> None:
     assert captured["api_key"] == "test-key"
     assert captured["api_base"] == "https://example.invalid/v1"
     assert captured["response_format"] == {"type": "json_object"}
+
+
+def test_build_completion_kwargs_applies_image_url_mapper() -> None:
+    payload = SearchRequest(
+        title="题目 https://p.ananas.chaoxing.com/star3/origin/a.png",
+        options="A. 正确\nB. 错误",
+        type=QuestionType.single,
+    )
+
+    kwargs = build_completion_kwargs(
+        make_settings(JsonMode.off),
+        payload,
+        image_url_mapper=lambda url: "data:image/png;base64,YWJj",
+    )
+    user_content = kwargs["messages"][1]["content"]
+
+    assert isinstance(user_content, list)
+    assert user_content[1:] == [
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64,YWJj"}},
+    ]
+
+
+def test_settings_reads_chaoxing_cookie_value() -> None:
+    settings = Settings(
+        llm_model="openai/test-model",
+        chaoxing_cookie=SecretStr("chaoxing-cookie"),
+    )
+
+    assert settings.chaoxing_cookie_value == "chaoxing-cookie"

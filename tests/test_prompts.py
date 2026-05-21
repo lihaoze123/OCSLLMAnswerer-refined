@@ -49,3 +49,25 @@ def test_build_messages_attaches_image_url_blocks() -> None:
         {"type": "image_url", "image_url": {"url": "https://example.com/table.png"}},
         {"type": "image_url", "image_url": {"url": "https://example.com/choice.jpg"}},
     ]
+
+
+def test_build_messages_uses_image_url_mapper_and_skips_none_results() -> None:
+    payload = SearchRequest(
+        title="题目 https://example.com/table.png求答案",
+        options="A. https://example.com/skip.jpg\nB. 选项B",
+        type=QuestionType.single,
+    )
+
+    def mapper(url: str) -> str | None:
+        if url.endswith("skip.jpg"):
+            return None
+        return "data:image/png;base64,YWJj"
+
+    messages = build_messages(payload, image_url_mapper=mapper)
+    user_content = messages[1]["content"]
+
+    assert isinstance(user_content, list)
+    assert "已附加 1 张图片" in user_content[0]["text"]
+    assert user_content[1:] == [
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64,YWJj"}},
+    ]

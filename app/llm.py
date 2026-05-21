@@ -6,8 +6,9 @@ from typing import Any, Protocol
 from litellm import completion, get_supported_openai_params
 
 from app.config import JsonMode, Settings
+from app.images import ImageUrlResolver
 from app.logging import log_error
-from app.prompts import build_messages
+from app.prompts import ImageUrlMapper, build_messages
 from app.schemas import ModelAnswer, SearchRequest
 
 FALLBACK_ANSWER = ModelAnswer(answer="未知", analysis="服务器处理出错")
@@ -38,13 +39,21 @@ class LiteLLMAnswerer:
         return extract_message_content(response)
 
 
-def build_completion_kwargs(settings: Settings, payload: SearchRequest) -> dict[str, Any]:
+def build_completion_kwargs(
+    settings: Settings,
+    payload: SearchRequest,
+    image_url_mapper: ImageUrlMapper | None = None,
+) -> dict[str, Any]:
     if not settings.llm_model:
         raise RuntimeError("LLM_MODEL is not configured")
 
+    resolved_image_url_mapper = image_url_mapper
+    if resolved_image_url_mapper is None:
+        resolved_image_url_mapper = ImageUrlResolver(settings.chaoxing_cookie_value).resolve
+
     kwargs: dict[str, Any] = {
         "model": settings.llm_model,
-        "messages": build_messages(payload),
+        "messages": build_messages(payload, image_url_mapper=resolved_image_url_mapper),
         "temperature": settings.llm_temperature,
         "timeout": settings.llm_timeout,
     }

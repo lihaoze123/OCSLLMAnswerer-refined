@@ -1,4 +1,5 @@
 import re
+from collections.abc import Callable
 from typing import Any
 
 from app.schemas import QuestionType, SearchRequest
@@ -10,6 +11,7 @@ IMAGE_URL_PATTERN = re.compile(
     re.IGNORECASE,
 )
 TRAILING_URL_PUNCTUATION = ".,;:!?)>]}，。；：！？）】》"
+ImageUrlMapper = Callable[[str], str | None]
 
 
 def build_special_instruction(question_type: QuestionType) -> str:
@@ -40,10 +42,14 @@ def extract_image_urls(*texts: str) -> list[str]:
     return image_urls
 
 
-def build_messages(payload: SearchRequest) -> list[dict[str, Any]]:
+def build_messages(
+    payload: SearchRequest,
+    image_url_mapper: ImageUrlMapper | None = None,
+) -> list[dict[str, Any]]:
     special_instruction = build_special_instruction(payload.type)
     image_urls = extract_image_urls(payload.title, payload.options)
-    image_instruction = build_image_instruction(image_urls)
+    attached_image_urls = map_image_urls(image_urls, image_url_mapper)
+    image_instruction = build_image_instruction(attached_image_urls)
     prompt = f"""
 你是一个专业的学术助教。请仔细阅读题目和选项，选出最正确的答案。
 
@@ -66,7 +72,7 @@ def build_messages(payload: SearchRequest) -> list[dict[str, Any]]:
     "analysis": "这里填写简短的解析"
 }}
 """
-    user_content = build_user_content(prompt.strip(), image_urls)
+    user_content = build_user_content(prompt.strip(), attached_image_urls)
     return [
         {"role": "system", "content": "你是一个只输出 JSON 的专业做题助手。"},
         {"role": "user", "content": user_content},
@@ -77,6 +83,18 @@ def build_image_instruction(image_urls: list[str]) -> str:
     if not image_urls:
         return ""
     return f"题目图片: 已附加 {len(image_urls)} 张图片，请结合图片中的表格、公式或文字作答。"
+
+
+def map_image_urls(image_urls: list[str], image_url_mapper: ImageUrlMapper | None) -> list[str]:
+    if image_url_mapper is None:
+        return image_urls
+
+    mapped_urls: list[str] = []
+    for url in image_urls:
+        mapped_url = image_url_mapper(url)
+        if mapped_url:
+            mapped_urls.append(mapped_url)
+    return mapped_urls
 
 
 def build_user_content(prompt: str, image_urls: list[str]) -> str | list[dict[str, Any]]:

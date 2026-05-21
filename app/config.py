@@ -37,11 +37,12 @@ class Settings(BaseSettings):
     )
     llm_temperature: float = Field(default=0.3, validation_alias="LLM_TEMPERATURE")
     llm_json_mode: JsonMode = Field(default=JsonMode.auto, validation_alias="LLM_JSON_MODE")
+    chaoxing_cookie: SecretStr | None = Field(default=None, validation_alias="CHAOXING_COOKIE")
 
     host: str = Field(default="0.0.0.0", validation_alias=AliasChoices("SERVER_HOST", "HOST"))
     port: int = Field(default=5000, validation_alias=AliasChoices("SERVER_PORT", "PORT"))
 
-    @field_validator("llm_base_url", "llm_model", mode="before")
+    @field_validator("llm_base_url", "llm_model", "chaoxing_cookie", mode="before")
     @classmethod
     def empty_string_to_none(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():
@@ -53,6 +54,12 @@ class Settings(BaseSettings):
         if self.llm_api_key is None:
             return None
         return self.llm_api_key.get_secret_value()
+
+    @property
+    def chaoxing_cookie_value(self) -> str | None:
+        if self.chaoxing_cookie is None:
+            return None
+        return self.chaoxing_cookie.get_secret_value()
 
 
 @lru_cache

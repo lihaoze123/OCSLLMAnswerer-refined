@@ -35,13 +35,19 @@ LLM_BASE_URL=https://api.openai.com/v1
 LLM_MODEL=openai/gpt-4o-mini
 LLM_TIMEOUT=30
 LLM_JSON_MODE=auto
+CHAOXING_COOKIE=
 ```
 
 `LLM_MODEL` 必填，没有硬编码默认模型。旧配置 `OPENAI_API_KEY`、`OPENAI_BASE_URL`
 和 `OPENAI_MODEL` 仍会作为兼容回退。
 
 如果题目包含图片 URL，请配置支持视觉输入的模型；服务会把图片 URL 作为多模态
-`image_url` 内容传给 LiteLLM，但不会下载、缓存或 OCR 图片。
+`image_url` 内容传给 LiteLLM。超星图片可能禁止 OpenAI 服务器直接访问，遇到
+`p.ananas.chaoxing.com` 图片 403 时，把浏览器里已登录超星的 Cookie 填到
+`CHAOXING_COOKIE`。服务会在本地带 Cookie 下载超星图片，转成 base64 data URL
+再传给模型；下载失败时会跳过该图片并继续处理文本题目。图片不会持久化缓存。
+超星图片下载固定不校验 SSL 证书，以避开校园网/代理环境里的自签名证书链问题；
+这只影响本地下载超星图片，不影响 LiteLLM/OpenAI API 调用。
 
 `LLM_JSON_MODE` 可选值：
 
