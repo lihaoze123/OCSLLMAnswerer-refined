@@ -38,6 +38,11 @@ Current error categories:
   bank connection failure.
 - LLM call or LLM JSON parse failure: `LiteLLMAnswerer.answer()` logs the error
   and returns an answer fallback rather than raising to the route.
+- Chaoxing image fetch failure: image resolution logs a concise local error,
+  skips the failed image block, and lets the LLM call continue with the
+  remaining attachments or text prompt.
+- Chaoxing image downloads intentionally use `verify=False`, so local
+  certificate-chain problems should not block protected image conversion.
 - Unexpected route failure: `/search` logs the exception and returns HTTP 500
   with `{"code": 0, "msg": str(e)}`.
 
@@ -56,6 +61,9 @@ Current error categories:
   preview, but not full request headers.
 - Keep LiteLLM/API failures inside `LiteLLMAnswerer.answer()` so callers receive
   a fallback `ModelAnswer`.
+- Keep protected-image fetch failures out of the OCS route boundary. Do not let
+  a Chaoxing 403, timeout, non-image response, or missing `CHAOXING_COOKIE`
+  produce a FastAPI error response.
 - Use `log_error()` for operational failures.
 - Preserve the route-level catch-all around `/search` because it prevents
   framework error shapes from reaching OCS.
@@ -92,5 +100,8 @@ Do not change the top-level `/search` success fields without updating
 - Do not reject unfamiliar OCS `type` labels at the schema boundary. Normalize
   known aliases and fall unknown labels back to `QuestionType.unknown`.
 - Do not expose secrets or full request headers in `msg` values or logs.
+- Do not pass protected Chaoxing image URLs directly to the provider when local
+  resolution failed; skip the image block so provider-side image download errors
+  do not collapse the whole answer into the generic fallback.
 - Do not change `code` semantics casually; `ocs_config.json` checks `code === 1`
   before using a response.

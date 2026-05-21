@@ -78,6 +78,8 @@ default logging format over the app's logging setup.
   payload/content-type/schema issue.
 - The selected answer and short analysis returned to OCS.
 - LiteLLM/provider API errors and model-response parse failures.
+- Chaoxing image download failures, with concise status/reason only and without
+  logging `CHAOXING_COOKIE`.
 - Unexpected route exceptions before returning a JSON error response.
 - Uvicorn server lifecycle/error messages, when emitted, through the same Rich
   handler.
@@ -87,7 +89,7 @@ default logging format over the app's logging setup.
 ## What NOT to Log
 
 - Never log `LLM_API_KEY`, `OPENAI_API_KEY`, full environment variables, request
-  headers, or provider credentials.
+  headers, `CHAOXING_COOKIE`, or provider credentials.
 - Do not log full request headers when diagnosing validation failures. Log only
   the specific safe fields needed for local debugging, such as content type and
   content length.

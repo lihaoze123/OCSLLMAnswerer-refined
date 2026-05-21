@@ -27,6 +27,7 @@ prompt construction, LLM gateway calls, parsing, and logging.
 |   |-- config.py       # pydantic-settings environment configuration
 |   |-- schemas.py      # Pydantic request/response/answer models
 |   |-- prompts.py      # OCS question prompt construction
+|   |-- images.py       # Image URL resolution and Chaoxing authenticated fetches
 |   |-- llm.py          # LiteLLM Chat Completions gateway + parser/fallback
 |   `-- logging.py      # Standard logging setup with colored local output
 |-- ocs_config.json     # OCS script-side search endpoint configuration
@@ -50,8 +51,11 @@ Current organization:
 - `app.schemas` owns OCS boundary models, `QuestionType`, and OCS-facing
   question-type alias normalization.
 - `app.prompts` owns prompt construction and question-type instructions.
+- `app.images` owns optional image URL resolution before model calls, including
+  authenticated Chaoxing image downloads and base64 data URL conversion.
 - `app.llm.LiteLLMAnswerer` owns LiteLLM calls, JSON mode capability handling,
-  parser cleanup, Pydantic answer validation, and LLM-level fallback behavior.
+  image URL resolution at the provider boundary, parser cleanup, Pydantic
+  answer validation, and LLM-level fallback behavior.
 - `app.logging` owns local colored console output through standard `logging`.
 
 When adding behavior, modify the module that owns that behavior. For example,

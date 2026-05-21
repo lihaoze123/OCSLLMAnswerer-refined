@@ -50,7 +50,16 @@ The configured quality gate is:
   when `title`/`options` contain image URLs, attach them to the user message as
   Chat Completions `image_url` content blocks; when no images are present, keep
   the user message content as plain text. Do not download, cache, or OCR images
-  as part of prompt construction.
+  as part of prompt construction. Protected Chaoxing images are the provider
+  boundary exception: resolve them in `app.images`/`app.llm`, not in prompt
+  construction.
+- Keep `CHAOXING_COOKIE` optional and secret-backed. Use it only for local
+  Chaoxing image fetches, never log it, and do not require it for text-only or
+  public-image questions.
+- Chaoxing image fetches intentionally use `verify=False` in `app.images` to
+  avoid local campus-network/proxy certificate-chain failures. Keep this scoped
+  to local Chaoxing image downloads; do not disable SSL verification for
+  LiteLLM/OpenAI API calls.
 - Parse `/search` request bodies manually as JSON from raw bytes so OCS payloads
   still work when the browser script sends JSON with
   `Content-Type: text/plain;charset=UTF-8`.
@@ -114,11 +123,16 @@ Minimum verification for code changes:
 
 - Request fields: `title: str`, `options: str = ""`,
   `type: QuestionType = "unknown"`.
-- Multimodal prompt behavior: image URLs embedded in `title` or `options` are
-  passed to LiteLLM as `{"type": "image_url", "image_url": {"url": "<url>"}}`
-  blocks in the user message content. The original text remains in the prompt.
-  No-image questions keep string user content for text-only provider
-  compatibility.
+- Multimodal prompt behavior: image URLs embedded in `title` or `options` become
+  `{"type": "image_url", "image_url": {"url": "<url-or-data-url>"}}` blocks in
+  the user message content. The original text remains in the prompt. No-image
+  questions keep string user content for text-only provider compatibility.
+- Chaoxing image behavior: URLs whose host is `chaoxing.com` or a subdomain
+  are resolved at the LiteLLM boundary. With `CHAOXING_COOKIE`, the service
+  locally fetches the image using Chaoxing-friendly headers and sends a
+  `data:<content-type>;base64,<payload>` URL to LiteLLM. Without the cookie or
+  when the fetch fails, the Chaoxing image block is skipped and the text prompt
+  continues.
 - Internal `type` values: `single`, `multiple`, `judgement`, `completion`,
   `unknown`.
 - External OCS `type` input may be a known internal value, a common alias, a
@@ -127,7 +141,8 @@ Minimum verification for code changes:
 - Success fields: `code: 1`, `question`, `answer`, `analysis`.
 - Error fields: `code: 0`, `msg`.
 - Primary env keys: `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`,
-  `LLM_TIMEOUT`, `LLM_JSON_MODE`, `SERVER_HOST`, `SERVER_PORT`.
+  `LLM_TIMEOUT`, `LLM_JSON_MODE`, `CHAOXING_COOKIE`, `SERVER_HOST`,
+  `SERVER_PORT`.
 - Legacy fallback env keys: `OPENAI_API_KEY`, `OPENAI_BASE_URL`,
   `OPENAI_MODEL`, `OPENAI_TIMEOUT`.
 
@@ -142,6 +157,12 @@ Minimum verification for code changes:
 - Invalid JSON/body shape -> HTTP 400 with `{"code": 0, "msg": ...}`.
 - LLM provider failure -> HTTP 200 success shape with fallback answer.
 - Malformed model JSON -> HTTP 200 success shape with fallback answer.
+- Missing `CHAOXING_COOKIE` for Chaoxing image -> skip that image block and
+  continue with the text prompt.
+- Chaoxing image HTTP/network/content-type failure -> log a concise local error,
+  skip that image block, and continue with the text prompt.
+- Chaoxing image certificate verification failure -> should not occur because
+  local Chaoxing image fetches use `verify=False`.
 
 ### 5. Good/Base/Bad Cases
 
@@ -152,6 +173,8 @@ Minimum verification for code changes:
 - Image: title/options contain `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, or
   `.bmp` URLs; prompt construction preserves the text and adds image content
   blocks for vision-capable models.
+- Protected image: Chaoxing image URL plus `CHAOXING_COOKIE` resolves to a
+  base64 data URL before LiteLLM is called, avoiding provider-side 403 fetches.
 - Compatibility: OCS sends JSON text as `text/plain;charset=UTF-8`; the service
   parses the raw body and validates it as `SearchRequest`.
 - Bad-but-tolerated: `type: "essay"` is accepted and handled as unknown so OCS
@@ -171,6 +194,9 @@ Minimum verification for code changes:
   capability detection.
 - Prompt tests asserting no-image content remains a string and image-question
   content includes the expected `image_url` blocks.
+- Image resolver tests for Chaoxing host detection, data URL encoding,
+  successful cookie-backed fetch mapping, missing-cookie skip, failed-fetch
+  skip, and non-Chaoxing URL passthrough.
 
 ### 7. Wrong vs Correct
 
@@ -190,3 +216,21 @@ return {"code": 0, "msg": "..."}
 
 This preserves the OCS-facing contract even though Pydantic performs the
 internal validation.
+
+#### Wrong
+
+```python
+{"type": "image_url", "image_url": {"url": chaoxing_url}}
+```
+
+This lets the model provider download a protected Chaoxing URL without the local
+browser session and can fail with HTTP 403.
+
+#### Correct
+
+```python
+{"type": "image_url", "image_url": {"url": data_url}}
+```
+
+Resolve Chaoxing URLs locally with `CHAOXING_COOKIE` at the LiteLLM boundary, or
+skip the image block when it cannot be fetched.
