@@ -7,6 +7,7 @@ Chat Completions 的大模型接口生成答案，并按 OCS 题库协议返回�
 
 - FastAPI 本地 API 服务，保留 `/` 和 `/search` 兼容接口。
 - 通过 LiteLLM 调用主流 OpenAI-compatible provider。
+- 自动识别题目和选项中的图片 URL，并把图片传给支持视觉输入的模型。
 - 支持 `LLM_*` 新配置，并兼容旧的 `OPENAI_*` 配置。
 - 自动清理 `<think>`、Markdown fence 和包裹文本，再用 Pydantic 校验答案 JSON。
 - 通过 `logging + RichHandler` 保留清晰的终端请求、答案、解析日志。
@@ -38,6 +39,9 @@ LLM_JSON_MODE=auto
 
 `LLM_MODEL` 必填，没有硬编码默认模型。旧配置 `OPENAI_API_KEY`、`OPENAI_BASE_URL`
 和 `OPENAI_MODEL` 仍会作为兼容回退。
+
+如果题目包含图片 URL，请配置支持视觉输入的模型；服务会把图片 URL 作为多模态
+`image_url` 内容传给 LiteLLM，但不会下载、缓存或 OCR 图片。
 
 `LLM_JSON_MODE` 可选值：
 
