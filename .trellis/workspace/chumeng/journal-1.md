@@ -104,3 +104,36 @@ Fixed OCS /search compatibility by accepting text/plain JSON payloads, toleratin
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: Unify console logging
+
+**Date**: 2026-05-21
+**Task**: Unify console logging
+**Branch**: `master`
+
+### Summary
+
+Unified local console logging by routing app and Uvicorn lifecycle logs through the Rich handler, disabling duplicate Uvicorn access logs, suppressing LiteLLM optional-provider startup warnings, updating logging specs, and verifying the quality gate.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1949142` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
