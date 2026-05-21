@@ -22,6 +22,9 @@ Current helpers:
 - `log_info(msg)`: startup and general operational messages.
 - `log_error(msg)`: LiteLLM/provider failures, JSON parse failures, and
   unexpected route exceptions.
+- `log_validation_error(...)`: OCS-facing request validation failures, including
+  method/path, client address, content-type, content-length, body size, a short
+  body preview, and sanitized validation error details.
 - `log_request(title, options, q_type)`: structured-ish request display for each
   OCS lookup.
 - `log_response(answer, analysis)`: answer and analysis display after model
@@ -53,6 +56,9 @@ multi-line display like `log_request()` is needed.
 
 - Server startup, including the host/port.
 - Each incoming OCS question title, question type, and normalized options.
+- OCS `/search` validation failures with safe request diagnostics, so browser
+  plugin "question bank connection failed" reports can be traced to the actual
+  payload/content-type/schema issue.
 - The selected answer and short analysis returned to OCS.
 - LiteLLM/provider API errors and model-response parse failures.
 - Unexpected route exceptions before returning a JSON error response.
@@ -63,6 +69,12 @@ multi-line display like `log_request()` is needed.
 
 - Never log `LLM_API_KEY`, `OPENAI_API_KEY`, full environment variables, request
   headers, or provider credentials.
+- Do not log full request headers when diagnosing validation failures. Log only
+  the specific safe fields needed for local debugging, such as content type and
+  content length.
+- Keep raw request body logging bounded to a short preview. The current
+  validation logger limits the decoded body preview to 500 characters and logs
+  the total byte count separately.
 - Avoid logging full raw model responses if they may contain sensitive prompt
   content; log concise parsing failures instead.
 - Be careful with question content. The current app logs titles/options for local

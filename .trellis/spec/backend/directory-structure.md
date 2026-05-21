@@ -44,9 +44,11 @@ Current organization:
 
 - Root `main.py` loads settings and launches uvicorn for `app.main:app`.
 - `app.main.create_app()` owns FastAPI app construction, route registration,
-  request validation error conversion, and test dependency injection.
+  `/search` raw-body JSON parsing for OCS content-type compatibility, request
+  validation error conversion, and test dependency injection.
 - `app.config.Settings` owns all environment-driven runtime configuration.
-- `app.schemas` owns OCS boundary models and the strict `QuestionType` enum.
+- `app.schemas` owns OCS boundary models, `QuestionType`, and OCS-facing
+  question-type alias normalization.
 - `app.prompts` owns prompt construction and question-type instructions.
 - `app.llm.LiteLLMAnswerer` owns LiteLLM calls, JSON mode capability handling,
   parser cleanup, Pydantic answer validation, and LLM-level fallback behavior.

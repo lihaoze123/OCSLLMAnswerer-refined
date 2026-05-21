@@ -20,6 +20,37 @@ TYPE_LABELS: dict[QuestionType, str] = {
     QuestionType.unknown: "未知类型",
 }
 
+QUESTION_TYPE_ALIASES: dict[str, QuestionType] = {
+    "single": QuestionType.single,
+    "singlechoice": QuestionType.single,
+    "single_choice": QuestionType.single,
+    "单选": QuestionType.single,
+    "单选题": QuestionType.single,
+    "multiple": QuestionType.multiple,
+    "multiplechoice": QuestionType.multiple,
+    "multiple_choice": QuestionType.multiple,
+    "多选": QuestionType.multiple,
+    "多选题": QuestionType.multiple,
+    "judgement": QuestionType.judgement,
+    "judgment": QuestionType.judgement,
+    "judge": QuestionType.judgement,
+    "truefalse": QuestionType.judgement,
+    "true_false": QuestionType.judgement,
+    "判断": QuestionType.judgement,
+    "判断题": QuestionType.judgement,
+    "completion": QuestionType.completion,
+    "completionquestion": QuestionType.completion,
+    "completion_question": QuestionType.completion,
+    "blank": QuestionType.completion,
+    "fillblank": QuestionType.completion,
+    "fill_blank": QuestionType.completion,
+    "填空": QuestionType.completion,
+    "填空题": QuestionType.completion,
+    "unknown": QuestionType.unknown,
+    "未知": QuestionType.unknown,
+    "未知类型": QuestionType.unknown,
+}
+
 
 class SearchRequest(BaseModel):
     title: str = Field(min_length=1)
@@ -41,6 +72,21 @@ class SearchRequest(BaseModel):
             return ""
         text = str(value)
         return "\n".join(line.strip() for line in text.splitlines() if line.strip())
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def normalize_type(cls, value: Any) -> QuestionType:
+        if value is None:
+            return QuestionType.unknown
+        if isinstance(value, QuestionType):
+            return value
+
+        text = str(value).strip()
+        if not text:
+            return QuestionType.unknown
+        return QUESTION_TYPE_ALIASES.get(
+            text.lower(), QUESTION_TYPE_ALIASES.get(text, QuestionType.unknown)
+        )
 
     @property
     def type_label(self) -> str:
