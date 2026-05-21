@@ -6,13 +6,14 @@
 
 ## Overview
 
-This project is currently a compact Flask backend, not a package-structured
-application. The runtime code lives in `main.py`, with OCS integration config in
-`ocs_config.json` and project metadata/dependencies in `pyproject.toml`.
+This project is a compact FastAPI backend with a deliberately small package
+layout. The root `main.py` is only a compatible startup entrypoint; runtime API
+behavior lives under `app/`.
 
-There are no `src/`, `app/`, `routes/`, `services/`, or package directories yet.
-Until the codebase grows, keep small endpoint, prompt, parsing, and logging
-changes close to the existing module-level functions in `main.py`.
+Do not expand this into a platform-style `api/services/providers/domain`
+hierarchy unless the product scope grows beyond the local OCS answer server.
+Keep splits aligned to concrete responsibilities: API routes, settings, schemas,
+prompt construction, LLM gateway calls, parsing, and logging.
 
 ---
 
@@ -20,7 +21,14 @@ changes close to the existing module-level functions in `main.py`.
 
 ```
 .
-|-- main.py             # Flask app, routes, OpenAI client, prompt/parsing logic
+|-- main.py             # Compatible uvicorn startup entrypoint
+|-- app/
+|   |-- main.py         # FastAPI app factory, routes, validation handler
+|   |-- config.py       # pydantic-settings environment configuration
+|   |-- schemas.py      # Pydantic request/response/answer models
+|   |-- prompts.py      # OCS question prompt construction
+|   |-- llm.py          # LiteLLM Chat Completions gateway + parser/fallback
+|   `-- logging.py      # Standard logging setup with colored local output
 |-- ocs_config.json     # OCS script-side search endpoint configuration
 |-- pyproject.toml      # Python >=3.13 metadata and runtime dependencies
 |-- README.md           # User-facing setup and OCS configuration instructions
@@ -32,40 +40,34 @@ changes close to the existing module-level functions in `main.py`.
 
 ## Module Organization
 
-Current organization in `main.py`:
+Current organization:
 
-- Imports and environment setup are at the top.
-- `app = Flask(__name__)` and the OpenAI-compatible client are module-level
-  singletons.
-- Console logging helpers are module-level functions:
-  `log_info`, `log_success`, `log_error`, `log_request`, and `log_response`.
-- `TYPE_MAPPING` is the central question-type mapping.
-- `get_chatgpt_answer()` owns prompt construction, LLM invocation, response
-  cleanup, JSON parsing, and LLM-level fallback behavior.
-- Flask routes are declared after helpers: `/` for health and `/search` for OCS
-  answer lookup.
+- Root `main.py` loads settings and launches uvicorn for `app.main:app`.
+- `app.main.create_app()` owns FastAPI app construction, route registration,
+  request validation error conversion, and test dependency injection.
+- `app.config.Settings` owns all environment-driven runtime configuration.
+- `app.schemas` owns OCS boundary models and the strict `QuestionType` enum.
+- `app.prompts` owns prompt construction and question-type instructions.
+- `app.llm.LiteLLMAnswerer` owns LiteLLM calls, JSON mode capability handling,
+  parser cleanup, Pydantic answer validation, and LLM-level fallback behavior.
+- `app.logging` owns local colored console output through standard `logging`.
 
-When adding small behavior, extend the existing function that owns that behavior.
-For example, add a new OCS question type by updating `TYPE_MAPPING` and the
-branching inside `get_chatgpt_answer()`, then verify `/search` still returns the
-same top-level JSON fields.
-
-If a future change makes `main.py` hard to navigate, split by responsibility:
-routes, LLM answer generation, response parsing, logging, and configuration.
-Do that as a focused refactor with compatibility tests rather than mixing it
-into an unrelated behavior change.
+When adding behavior, modify the module that owns that behavior. For example,
+add a new supported OCS question type in `app.schemas.QuestionType`, labels in
+`TYPE_LABELS`, prompt text in `app.prompts`, and tests for `/search`.
 
 ---
 
 ## Naming Conventions
 
 - Python functions use `snake_case`.
-- Constants use `UPPER_SNAKE_CASE`, as shown by `TYPE_MAPPING`.
+- Constants use `UPPER_SNAKE_CASE`, as shown by `TYPE_LABELS`.
 - Request fields mirror OCS payload names: `title`, `options`, and `type`.
 - JSON response fields are part of the external contract: `code`, `question`,
   `answer`, `analysis`, and `msg`.
-- Environment variables are uppercase and read through `os.getenv`, currently
-  `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and `OPENAI_MODEL`.
+- Environment variables are uppercase and loaded through `pydantic-settings`.
+  Primary provider settings use `LLM_*`; legacy `OPENAI_*` variables remain
+  compatibility fallbacks.
 - Keep new file names lowercase with underscores if the project is split into
   modules later.
 
@@ -73,10 +75,12 @@ into an unrelated behavior change.
 
 ## Examples
 
-- `main.py`: canonical example for route structure, OpenAI-compatible client
-  setup, prompt generation, LLM response cleanup, and OCS JSON response shape.
+- `app/main.py`: canonical example for FastAPI route structure and OCS JSON
+  response shape.
+- `app/llm.py`: canonical example for LiteLLM Chat Completions setup, JSON mode
+  handling, model response cleanup, and fallback behavior.
 - `ocs_config.json`: canonical example for the OCS consumer contract. Its
   handler expects a successful lookup to use `code === 1` and returns the
   `question` and `answer` fields.
-- `README.md`: user-facing setup should stay aligned with the default Flask
-  host/port and `/search` endpoint in `main.py`.
+- `README.md`: user-facing setup should stay aligned with the default
+  FastAPI/uvicorn host/port and `/search` endpoint in `app/main.py`.

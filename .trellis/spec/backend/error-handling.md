@@ -6,10 +6,11 @@
 
 ## Overview
 
-The backend uses simple local `try`/`except` blocks and JSON responses rather
-than custom exception classes. Errors are logged to the console with colorized
-helpers in `main.py`, and API failures return OCS-friendly JSON instead of HTML
-error pages.
+The backend uses FastAPI exception handlers, local `try`/`except` blocks around
+route and LLM boundaries, and JSON responses. Errors are logged through
+standard-library `logging` helpers in `app/logging.py`, and API failures return
+OCS-friendly JSON instead of FastAPI's default `detail` response when the route
+is OCS-facing.
 
 The external response contract matters more than exception type purity: OCS
 expects successful lookups to return `code: 1`, while failures return `code: 0`
@@ -23,14 +24,16 @@ No custom error classes are defined.
 
 Current error categories:
 
-- Missing configuration: if `OPENAI_API_KEY` is absent, startup prints a warning
-  but the Flask app still starts.
-- Bad request JSON: `/search` uses `request.get_json(force=True, silent=True)`
-  and falls back to `json.loads(request.data)`.
+- Missing configuration: `LLM_MODEL`/`OPENAI_MODEL` has no hard-coded default.
+  LLM calls fail into the answer fallback if the model is not configured.
+- Bad request JSON or schema validation: FastAPI/Pydantic raises
+  `RequestValidationError`, which `app/main.py` converts to OCS error JSON.
 - Missing question title: `/search` returns `{"code": 0, "msg": "..."}` with
   HTTP 400.
-- LLM call or LLM JSON parse failure: `get_chatgpt_answer()` logs the error and
-  returns an answer fallback rather than raising to the route.
+- Unsupported question type: `/search` returns `{"code": 0, "msg": "..."}` with
+  HTTP 400.
+- LLM call or LLM JSON parse failure: `LiteLLMAnswerer.answer()` logs the error
+  and returns an answer fallback rather than raising to the route.
 - Unexpected route failure: `/search` logs the exception and returns HTTP 500
   with `{"code": 0, "msg": str(e)}`.
 
@@ -38,16 +41,13 @@ Current error categories:
 
 ## Error Handling Patterns
 
-- Keep request parsing failures inside the route and return a JSON error.
-- Keep OpenAI-compatible API failures inside `get_chatgpt_answer()` so callers
-  receive a fallback object with `answer` and `analysis`.
-- Use `log_error()` for operational failures. The current logger prints
-  `[ERROR]`, a timestamp, and the message.
-- Preserve the route-level catch-all around `/search` until more specific error
-  handling exists, because it prevents Flask from returning HTML to OCS.
-
-Example from `main.py`: bad JSON falls back from Flask parsing to `json.loads`,
-then returns a `code: 0` JSON response with HTTP 400 if both fail.
+- Convert `RequestValidationError` to `{"code": 0, "msg": "..."}` for OCS
+  compatibility.
+- Keep LiteLLM/API failures inside `LiteLLMAnswerer.answer()` so callers receive
+  a fallback `ModelAnswer`.
+- Use `log_error()` for operational failures.
+- Preserve the route-level catch-all around `/search` because it prevents
+  framework error shapes from reaching OCS.
 
 ---
 
@@ -65,10 +65,10 @@ for request/server errors, and:
 {"answer": "<localized unknown answer>", "analysis": "<localized processing error>"}
 ```
 
-inside the internal fallback object returned by `get_chatgpt_answer()`.
+inside the internal fallback object returned by `LiteLLMAnswerer.answer()`.
 
 Do not change the top-level `/search` success fields without updating
-`ocs_config.json` and the README OCS handler example.
+`ocs_config.json`, the README OCS handler example, and `tests/test_api.py`.
 
 ---
 
@@ -76,7 +76,8 @@ Do not change the top-level `/search` success fields without updating
 
 - Do not let malformed model output propagate as a 500 when an answer fallback
   is acceptable.
-- Do not return Flask HTML error pages from API routes.
+- Do not return FastAPI `{"detail": ...}` or HTML error pages from OCS-facing
+  API routes.
 - Do not expose secrets or full request headers in `msg` values or logs.
 - Do not change `code` semantics casually; `ocs_config.json` checks `code === 1`
   before using a response.
