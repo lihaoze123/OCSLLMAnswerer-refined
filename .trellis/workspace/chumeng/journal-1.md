@@ -137,3 +137,37 @@ Unified local console logging by routing app and Uvicorn lifecycle logs through 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: Support image question prompts
+
+**Date**: 2026-05-21
+**Task**: Support image question prompts
+**Branch**: `master`
+
+### Summary
+
+Added multimodal image URL handling for OCS question prompts, documented the prompt contract, and verified ruff, ty, and pytest.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `edf723d` | (see git log) |
+| `c51d02e` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
