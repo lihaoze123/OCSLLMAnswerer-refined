@@ -71,3 +71,36 @@ Refactored Flask entrypoint into a compact FastAPI service with LiteLLM gateway,
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: Fix OCS question bank search
+
+**Date**: 2026-05-21
+**Task**: Fix OCS question bank search
+**Branch**: `master`
+
+### Summary
+
+Fixed OCS /search compatibility by accepting text/plain JSON payloads, tolerating question type aliases, adding validation diagnostics, updating backend specs, and verifying the quality gate.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6ddeea4` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
