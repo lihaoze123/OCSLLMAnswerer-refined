@@ -1,15 +1,15 @@
 # OCS AI Answerer Server
 
-一个本地 OCS 网课助手 AI 题库服务。服务接收 OCS 发送的题目，通过兼容 OpenAI
-Chat Completions 的大模型接口生成答案，并按 OCS 题库协议返回结果。
+一个本地 OCS 网课助手 AI 题库服务。服务接收 OCS 发送的题目，通过 Pydantic AI
+调用 OpenAI-compatible 大模型接口生成答案，并按 OCS 题库协议返回结果。
 
 ## 特性
 
 - FastAPI 本地 API 服务，保留 `/` 和 `/search` 兼容接口。
-- 通过 LiteLLM 调用主流 OpenAI-compatible provider。
-- 自动识别题目和选项中的图片 URL，并把图片传给支持视觉输入的模型。
-- 支持 `LLM_*` 新配置，并兼容旧的 `OPENAI_*` 配置。
-- 自动清理 `<think>`、Markdown fence 和包裹文本，再用 Pydantic 校验答案 JSON。
+- 通过 Pydantic AI 调用 OpenAI-compatible provider，并用 Pydantic 结构化校验答案。
+- 自动识别题目和选项中的图片 URL，本地下载图片后传给视觉模型。
+- 文本模型和视觉模型分开配置，图片题缺少视觉模型时返回兜底答案。
+- 图片下载参考 ZError 的多请求头策略，支持超星、智慧树等教育平台 Referer。
 - 通过 `logging + RichHandler` 保留清晰的终端请求、答案、解析日志。
 - 使用 `uv`、`ruff`、`ty`、`pytest` 作为开发工具链。
 
@@ -30,30 +30,23 @@ cp .env.example .env
 然后编辑 `.env`：
 
 ```env
-LLM_API_KEY=your_api_key_here
-LLM_BASE_URL=https://api.openai.com/v1
-LLM_MODEL=openai/gpt-4o-mini
-LLM_TIMEOUT=30
-LLM_JSON_MODE=auto
+AI_PROVIDER=openai-compatible
+AI_API_KEY=your_api_key_here
+AI_BASE_URL=https://api.openai.com/v1
+AI_TEXT_MODEL=gpt-4o-mini
+AI_VISION_MODEL=gpt-4o
+AI_TIMEOUT=30
+AI_TEMPERATURE=0.3
 CHAOXING_COOKIE=
 ```
 
-`LLM_MODEL` 必填，没有硬编码默认模型。旧配置 `OPENAI_API_KEY`、`OPENAI_BASE_URL`
-和 `OPENAI_MODEL` 仍会作为兼容回退。
+`AI_TEXT_MODEL` 用于普通文本题，`AI_VISION_MODEL` 用于包含图片 URL 的题目。没有硬编码默认模型。
+本版本不再兼容旧的 `LLM_*` / `OPENAI_*` 配置。
 
-如果题目包含图片 URL，请配置支持视觉输入的模型；服务会把图片 URL 作为多模态
-`image_url` 内容传给 LiteLLM。超星图片可能禁止 OpenAI 服务器直接访问，遇到
-`p.ananas.chaoxing.com` 图片 403 时，把浏览器里已登录超星的 Cookie 填到
-`CHAOXING_COOKIE`。服务会在本地带 Cookie 下载超星图片，转成 base64 data URL
-再传给模型；下载失败时会跳过该图片并继续处理文本题目。图片不会持久化缓存。
-超星图片下载固定不校验 SSL 证书，以避开校园网/代理环境里的自签名证书链问题；
-这只影响本地下载超星图片，不影响 LiteLLM/OpenAI API 调用。
-
-`LLM_JSON_MODE` 可选值：
-
-- `auto`：默认值。LiteLLM 判断 provider 支持 `response_format` 时启用 JSON mode。
-- `on`：强制传入 `response_format={"type":"json_object"}`。
-- `off`：不传 `response_format`。
+如果题目包含图片 URL，请配置支持视觉输入的 `AI_VISION_MODEL`。服务会在本地下载图片，
+校验图片类型和大小，再通过 Pydantic AI 的二进制图片输入传给模型。任意图片下载失败时，
+服务会返回兜底答案，不会跳过图片继续猜测。超星图片如需登录态，可把浏览器里已登录超星的
+Cookie 填到 `CHAOXING_COOKIE`；该 Cookie 只用于本地下载超星图片。图片不会持久化缓存。
 
 ## 运行
 

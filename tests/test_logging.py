@@ -17,5 +17,7 @@ def test_configure_logging_is_idempotent_and_unifies_known_loggers() -> None:
     assert logging.getLogger("uvicorn.error").disabled is False
     assert logging.getLogger("uvicorn.access").handlers == []
     assert logging.getLogger("uvicorn.access").disabled is True
-    assert logging.getLogger("LiteLLM").handlers == [app_handler]
-    assert logging.getLogger("LiteLLM").level == logging.ERROR
+    assert logging.getLogger("openai").handlers == [app_handler]
+    assert logging.getLogger("openai").level == logging.ERROR
+    assert logging.getLogger("pydantic_ai").handlers == [app_handler]
+    assert logging.getLogger("pydantic_ai").level == logging.ERROR

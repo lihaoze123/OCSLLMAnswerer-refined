@@ -7,7 +7,7 @@ from rich.logging import RichHandler
 LOGGER_NAME = "ocs_answerer"
 BODY_PREVIEW_LIMIT = 500
 UVICORN_LOGGERS = ("uvicorn", "uvicorn.error")
-LITELLM_LOGGERS = ("LiteLLM", "litellm")
+AI_LIBRARY_LOGGERS = ("openai", "httpx", "pydantic_ai")
 logger = logging.getLogger(LOGGER_NAME)
 
 
@@ -15,7 +15,7 @@ def configure_logging() -> None:
     handler = get_console_handler()
     configure_logger(logger, handler=handler, level=logging.INFO, disabled=False)
     configure_uvicorn_loggers(handler)
-    configure_litellm_loggers(handler)
+    configure_ai_library_loggers(handler)
 
 
 def get_console_handler() -> RichHandler:
@@ -59,8 +59,8 @@ def configure_uvicorn_loggers(handler: logging.Handler) -> None:
     access_logger.propagate = False
 
 
-def configure_litellm_loggers(handler: logging.Handler) -> None:
-    for name in LITELLM_LOGGERS:
+def configure_ai_library_loggers(handler: logging.Handler) -> None:
+    for name in AI_LIBRARY_LOGGERS:
         configure_logger(
             logging.getLogger(name),
             handler=handler,

@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from app.config import Settings, get_settings
-from app.llm import Answerer, LiteLLMAnswerer
+from app.llm import Answerer, PydanticAIAnswerer
 from app.logging import (
     configure_logging,
     log_error,
@@ -20,7 +20,7 @@ from app.schemas import ErrorResponse, HealthResponse, SearchRequest, SearchResp
 def create_app(settings: Settings | None = None, answerer: Answerer | None = None) -> FastAPI:
     configure_logging()
     resolved_settings = settings or get_settings()
-    resolved_answerer = answerer or LiteLLMAnswerer(resolved_settings)
+    resolved_answerer = answerer or PydanticAIAnswerer(resolved_settings)
 
     fastapi_app = FastAPI(title="OCS AI Answerer Server", version="0.1.0")
     fastapi_app.state.settings = resolved_settings

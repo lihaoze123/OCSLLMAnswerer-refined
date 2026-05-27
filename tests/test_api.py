@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
 from app import main as app_main
-from app.config import JsonMode, Settings
+from app.config import Settings
 from app.main import create_app
 from app.schemas import ModelAnswer, QuestionType, SearchRequest
 
@@ -21,9 +21,8 @@ class FakeAnswerer:
 
 def make_client(answerer: FakeAnswerer | None = None) -> TestClient:
     settings = Settings(
-        llm_api_key=SecretStr("test-key"),
-        llm_model="test-model",
-        llm_json_mode=JsonMode.off,
+        ai_api_key=SecretStr("test-key"),
+        ai_text_model="test-model",
     )
     app = create_app(settings=settings, answerer=answerer or FakeAnswerer())
     return TestClient(app)
@@ -69,8 +68,8 @@ def test_search_preserves_success_contract_and_normalizes_options() -> None:
     assert answerer.payloads[0].options == "A. 选项A\nB. 选项B"
 
 
-def test_search_preserves_llm_failure_fallback_success_shape() -> None:
-    settings = Settings(llm_model=None, llm_json_mode=JsonMode.off)
+def test_search_preserves_ai_failure_fallback_success_shape() -> None:
+    settings = Settings(ai_text_model=None)
     app = create_app(settings=settings)
     client = TestClient(app)
 

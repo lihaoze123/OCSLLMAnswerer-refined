@@ -1,73 +1,25 @@
-from app.prompts import build_messages, extract_image_urls
+from app.prompts import build_prompt
 from app.schemas import QuestionType, SearchRequest
 
 
-def test_extract_image_urls_stops_before_adjacent_chinese_text() -> None:
-    title = (
-        "如下几个表所示"
-        "https://p.ananas.chaoxing.com/star3/origin/fb6c52ba3edd701e5e832cbf0daf359d.png"
-        "求既学过“1001”号课"
-    )
-
-    assert extract_image_urls(title) == [
-        "https://p.ananas.chaoxing.com/star3/origin/fb6c52ba3edd701e5e832cbf0daf359d.png"
-    ]
-
-
-def test_extract_image_urls_deduplicates_and_ignores_non_image_urls() -> None:
-    image_url = "https://example.com/question.PNG"
-
-    assert extract_image_urls(
-        f"题目图片 {image_url}。",
-        f"A. 再次出现 {image_url}\nB. 文档 https://example.com/page",
-    ) == [image_url]
-
-
-def test_build_messages_keeps_plain_text_user_content_without_images() -> None:
+def test_build_prompt_omits_image_instruction_without_images() -> None:
     payload = SearchRequest(title="题目", options="A. 选项A\nB. 选项B", type=QuestionType.single)
 
-    messages = build_messages(payload)
+    prompt = build_prompt(payload)
 
-    assert isinstance(messages[1]["content"], str)
-    assert "题目图片" not in messages[1]["content"]
+    assert "题目图片" not in prompt
+    assert "题目: 题目" in prompt
 
 
-def test_build_messages_attaches_image_url_blocks() -> None:
+def test_build_prompt_includes_image_instruction_with_image_count() -> None:
     payload = SearchRequest(
         title="题目 https://example.com/table.png求答案",
         options="A. 选项A\nB. https://example.com/choice.jpg",
         type=QuestionType.single,
     )
 
-    messages = build_messages(payload)
-    user_content = messages[1]["content"]
+    prompt = build_prompt(payload, image_count=2)
 
-    assert isinstance(user_content, list)
-    assert user_content[0]["type"] == "text"
-    assert "已附加 2 张图片" in user_content[0]["text"]
-    assert user_content[1:] == [
-        {"type": "image_url", "image_url": {"url": "https://example.com/table.png"}},
-        {"type": "image_url", "image_url": {"url": "https://example.com/choice.jpg"}},
-    ]
-
-
-def test_build_messages_uses_image_url_mapper_and_skips_none_results() -> None:
-    payload = SearchRequest(
-        title="题目 https://example.com/table.png求答案",
-        options="A. https://example.com/skip.jpg\nB. 选项B",
-        type=QuestionType.single,
-    )
-
-    def mapper(url: str) -> str | None:
-        if url.endswith("skip.jpg"):
-            return None
-        return "data:image/png;base64,YWJj"
-
-    messages = build_messages(payload, image_url_mapper=mapper)
-    user_content = messages[1]["content"]
-
-    assert isinstance(user_content, list)
-    assert "已附加 1 张图片" in user_content[0]["text"]
-    assert user_content[1:] == [
-        {"type": "image_url", "image_url": {"url": "data:image/png;base64,YWJj"}},
-    ]
+    assert "已附加 2 张图片" in prompt
+    assert "https://example.com/table.png求答案" in prompt
+    assert "https://example.com/choice.jpg" in prompt

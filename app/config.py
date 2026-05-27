@@ -5,10 +5,8 @@ from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class JsonMode(StrEnum):
-    auto = "auto"
-    on = "on"
-    off = "off"
+class AIProvider(StrEnum):
+    openai_compatible = "openai-compatible"
 
 
 class Settings(BaseSettings):
@@ -19,30 +17,28 @@ class Settings(BaseSettings):
         populate_by_name=True,
     )
 
-    llm_api_key: SecretStr | None = Field(
-        default=None,
-        validation_alias=AliasChoices("LLM_API_KEY", "OPENAI_API_KEY"),
+    ai_provider: AIProvider = Field(
+        default=AIProvider.openai_compatible,
+        validation_alias="AI_PROVIDER",
     )
-    llm_base_url: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("LLM_BASE_URL", "OPENAI_BASE_URL"),
-    )
-    llm_model: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("LLM_MODEL", "OPENAI_MODEL"),
-    )
-    llm_timeout: float = Field(
-        default=30.0,
-        validation_alias=AliasChoices("LLM_TIMEOUT", "OPENAI_TIMEOUT"),
-    )
-    llm_temperature: float = Field(default=0.3, validation_alias="LLM_TEMPERATURE")
-    llm_json_mode: JsonMode = Field(default=JsonMode.auto, validation_alias="LLM_JSON_MODE")
+    ai_api_key: SecretStr | None = Field(default=None, validation_alias="AI_API_KEY")
+    ai_base_url: str | None = Field(default=None, validation_alias="AI_BASE_URL")
+    ai_text_model: str | None = Field(default=None, validation_alias="AI_TEXT_MODEL")
+    ai_vision_model: str | None = Field(default=None, validation_alias="AI_VISION_MODEL")
+    ai_timeout: float = Field(default=30.0, validation_alias="AI_TIMEOUT")
+    ai_temperature: float = Field(default=0.3, validation_alias="AI_TEMPERATURE")
     chaoxing_cookie: SecretStr | None = Field(default=None, validation_alias="CHAOXING_COOKIE")
 
     host: str = Field(default="0.0.0.0", validation_alias=AliasChoices("SERVER_HOST", "HOST"))
     port: int = Field(default=5000, validation_alias=AliasChoices("SERVER_PORT", "PORT"))
 
-    @field_validator("llm_base_url", "llm_model", "chaoxing_cookie", mode="before")
+    @field_validator(
+        "ai_base_url",
+        "ai_text_model",
+        "ai_vision_model",
+        "chaoxing_cookie",
+        mode="before",
+    )
     @classmethod
     def empty_string_to_none(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():
@@ -50,10 +46,10 @@ class Settings(BaseSettings):
         return value
 
     @property
-    def llm_api_key_value(self) -> str | None:
-        if self.llm_api_key is None:
+    def ai_api_key_value(self) -> str | None:
+        if self.ai_api_key is None:
             return None
-        return self.llm_api_key.get_secret_value()
+        return self.ai_api_key.get_secret_value()
 
     @property
     def chaoxing_cookie_value(self) -> str | None:

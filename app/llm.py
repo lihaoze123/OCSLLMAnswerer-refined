@@ -1,130 +1,132 @@
-import json
-import re
-from collections.abc import Mapping
+from collections.abc import Callable, Sequence
 from typing import Any, Protocol
 
-from litellm import completion, get_supported_openai_params
+from pydantic_ai import Agent, BinaryContent, ModelSettings
+from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.providers.openai import OpenAIProvider
 
-from app.config import JsonMode, Settings
-from app.images import ImageUrlResolver
+from app.config import AIProvider, Settings
+from app.images import DownloadedImage, ImageDownloader
 from app.logging import log_error
-from app.prompts import ImageUrlMapper, build_messages
+from app.prompts import SYSTEM_INSTRUCTIONS, build_prompt
+from app.question_images import extract_image_urls, split_image_parts
 from app.schemas import ModelAnswer, SearchRequest
 
 FALLBACK_ANSWER = ModelAnswer(answer="未知", analysis="服务器处理出错")
+DUMMY_API_KEY = "not-needed"
 
 
 class Answerer(Protocol):
     def answer(self, payload: SearchRequest) -> ModelAnswer: ...
 
 
-class LiteLLMAnswerer:
-    def __init__(self, settings: Settings) -> None:
+class AgentRunner(Protocol):
+    def run_sync(
+        self,
+        user_prompt: str | Sequence[Any] | None = None,
+        *,
+        model_settings: ModelSettings | None = None,
+    ) -> Any: ...
+
+
+AgentFactory = Callable[[Any], AgentRunner]
+
+
+class PydanticAIAnswerer:
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        image_downloader: ImageDownloader | None = None,
+        agent_factory: AgentFactory | None = None,
+    ) -> None:
         self._settings = settings
+        self._image_downloader = image_downloader or ImageDownloader(settings.chaoxing_cookie_value)
+        self._agent_factory = agent_factory or create_answer_agent
 
     def answer(self, payload: SearchRequest) -> ModelAnswer:
         try:
-            content = self._request_model(payload)
-            return parse_model_answer(content)
+            return self._run_agent(payload)
         except Exception as exc:
-            log_error(f"LLM 调用或解析失败: {exc}")
+            log_error(f"AI 调用或结构化输出失败: {exc}")
             return FALLBACK_ANSWER
 
-    def _request_model(self, payload: SearchRequest) -> str:
-        if not self._settings.llm_model:
-            raise RuntimeError("LLM_MODEL is not configured")
+    def _run_agent(self, payload: SearchRequest) -> ModelAnswer:
+        image_urls = extract_image_urls(payload.title, payload.options)
+        model_name = select_model_name(self._settings, has_images=bool(image_urls))
+        images_by_url = self._download_images(image_urls)
+        model = build_model(self._settings, model_name)
+        agent = self._agent_factory(model)
+        result = agent.run_sync(
+            build_agent_input(payload, images_by_url),
+            model_settings=ModelSettings(
+                temperature=self._settings.ai_temperature,
+                timeout=self._settings.ai_timeout,
+            ),
+        )
+        output = result.output
+        if not isinstance(output, ModelAnswer):
+            return ModelAnswer.model_validate(output)
+        return output
 
-        kwargs = build_completion_kwargs(self._settings, payload)
-        response = completion(**kwargs)
-        return extract_message_content(response)
+    def _download_images(self, image_urls: list[str]) -> dict[str, DownloadedImage]:
+        return {url: self._image_downloader.download(url) for url in image_urls}
 
 
-def build_completion_kwargs(
-    settings: Settings,
+def create_answer_agent(model: Any) -> AgentRunner:
+    return Agent(
+        model,
+        output_type=ModelAnswer,
+        instructions=SYSTEM_INSTRUCTIONS,
+        retries=2,
+    )
+
+
+def select_model_name(settings: Settings, *, has_images: bool) -> str:
+    if has_images:
+        if not settings.ai_vision_model:
+            raise RuntimeError("AI_VISION_MODEL is not configured")
+        return settings.ai_vision_model
+
+    if not settings.ai_text_model:
+        raise RuntimeError("AI_TEXT_MODEL is not configured")
+    return settings.ai_text_model
+
+
+def build_model(settings: Settings, model_name: str) -> OpenAIChatModel:
+    if settings.ai_provider != AIProvider.openai_compatible:
+        raise RuntimeError(f"Unsupported AI_PROVIDER: {settings.ai_provider}")
+
+    provider = OpenAIProvider(
+        base_url=settings.ai_base_url,
+        api_key=settings.ai_api_key_value or DUMMY_API_KEY,
+    )
+    return OpenAIChatModel(normalize_openai_model_name(model_name), provider=provider)
+
+
+def normalize_openai_model_name(model_name: str) -> str:
+    prefix = "openai:"
+    if model_name.startswith(prefix):
+        return model_name[len(prefix) :]
+    return model_name
+
+
+def build_agent_input(
     payload: SearchRequest,
-    image_url_mapper: ImageUrlMapper | None = None,
-) -> dict[str, Any]:
-    if not settings.llm_model:
-        raise RuntimeError("LLM_MODEL is not configured")
+    images_by_url: dict[str, DownloadedImage],
+) -> str | list[Any]:
+    prompt = build_prompt(payload, image_count=len(images_by_url))
+    if not images_by_url:
+        return prompt
 
-    resolved_image_url_mapper = image_url_mapper
-    if resolved_image_url_mapper is None:
-        resolved_image_url_mapper = ImageUrlResolver(settings.chaoxing_cookie_value).resolve
+    content: list[Any] = []
+    for part in split_image_parts(prompt):
+        if part.kind == "text" and part.text:
+            content.append(part.text)
+        elif part.kind == "image":
+            image = images_by_url.get(part.url)
+            if image is None:
+                raise RuntimeError(f"图片未完成下载: {part.url}")
+            content.append(BinaryContent(data=image.data, media_type=image.media_type))
 
-    kwargs: dict[str, Any] = {
-        "model": settings.llm_model,
-        "messages": build_messages(payload, image_url_mapper=resolved_image_url_mapper),
-        "temperature": settings.llm_temperature,
-        "timeout": settings.llm_timeout,
-    }
-    if settings.llm_api_key_value:
-        kwargs["api_key"] = settings.llm_api_key_value
-    if settings.llm_base_url:
-        kwargs["api_base"] = settings.llm_base_url
-    if should_enable_json_mode(settings):
-        kwargs["response_format"] = {"type": "json_object"}
-    return kwargs
-
-
-def should_enable_json_mode(settings: Settings) -> bool:
-    if settings.llm_json_mode == JsonMode.on:
-        return True
-    if settings.llm_json_mode == JsonMode.off:
-        return False
-    if not settings.llm_model:
-        return False
-
-    try:
-        supported_params = get_supported_openai_params(model=settings.llm_model)
-    except Exception as exc:
-        log_error(f"无法检测模型 JSON mode 支持情况: {exc}")
-        return False
-    return "response_format" in set(supported_params or [])
-
-
-def extract_message_content(response: Any) -> str:
-    choices = getattr(response, "choices", None)
-    if choices:
-        message = getattr(choices[0], "message", None)
-        content = getattr(message, "content", None)
-        if isinstance(content, str):
-            return content
-
-    if isinstance(response, Mapping):
-        choices_obj = response.get("choices")
-        if isinstance(choices_obj, list) and choices_obj:
-            choice = choices_obj[0]
-            if isinstance(choice, Mapping):
-                message = choice.get("message")
-                if isinstance(message, Mapping):
-                    content = message.get("content")
-                    if isinstance(content, str):
-                        return content
-
-    raise ValueError("模型响应中没有可解析的 content")
-
-
-def parse_model_answer(content: str) -> ModelAnswer:
-    cleaned = clean_model_content(content)
-    obj = extract_first_json_object(cleaned)
-    return ModelAnswer.model_validate(obj)
-
-
-def clean_model_content(content: str) -> str:
-    cleaned = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
-    cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r"\s*```$", "", cleaned)
-    return cleaned.strip()
-
-
-def extract_first_json_object(content: str) -> Any:
-    decoder = json.JSONDecoder()
-    for index, char in enumerate(content):
-        if char != "{":
-            continue
-        try:
-            obj, _ = decoder.raw_decode(content[index:])
-            return obj
-        except json.JSONDecodeError:
-            continue
-    raise ValueError("模型输出中没有合法 JSON 对象")
+    return content
