@@ -205,3 +205,37 @@ Added cookie-backed Chaoxing image downloading with base64 data URL conversion, 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 7: Refactor AI and image input architecture
+
+**Date**: 2026-05-27
+**Task**: Refactor AI and image input architecture
+**Branch**: `master`
+
+### Summary
+
+Migrated AI answering from LiteLLM to Pydantic AI, rebuilt image URL parsing and local download flow for BinaryContent vision input, updated AI_* configuration, tests, README, and backend specs.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `09adbbe` | (see git log) |
+| `4932d41` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
