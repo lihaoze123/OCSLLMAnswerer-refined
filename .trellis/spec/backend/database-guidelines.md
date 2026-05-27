@@ -8,8 +8,8 @@
 
 This project currently has no database, ORM, migrations, persistent storage, or
 repository layer. Requests are handled statelessly: `/search` receives the OCS
-payload, calls an OpenAI-compatible chat completions API, cleans/parses the
-model output, and returns JSON.
+payload, calls an OpenAI-compatible model through Pydantic AI, validates the
+structured output, and returns JSON.
 
 Do not introduce persistence as an incidental implementation detail. Any future
 database/cache addition should be designed explicitly because it changes privacy,
@@ -23,7 +23,7 @@ No query patterns exist yet.
 
 If persistence is added later:
 
-- Keep data-access code out of Flask route functions.
+- Keep data-access code out of FastAPI route functions.
 - Treat request payloads, model prompts, model responses, and API keys as
   sensitive by default.
 - Avoid storing raw question/answer traffic unless the feature explicitly needs
@@ -34,9 +34,10 @@ If persistence is added later:
 
 ## Migrations
 
-No migration tooling exists. `pyproject.toml` has runtime dependencies for Flask,
-OpenAI-compatible API access, dotenv loading, regex support, and colorized
-console output, but no database driver or migration library.
+No migration tooling exists. `pyproject.toml` has runtime dependencies for
+FastAPI, Pydantic AI/OpenAI-compatible API access, pydantic-settings, HTTP image
+fetching, and colorized console output, but no database driver or migration
+library.
 
 If a database is introduced, add the migration tool and the first migration in
 the same task, and document the command to create/apply migrations here.
@@ -57,7 +58,7 @@ the existing external OCS field names (`title`, `options`, `type`, `answer`,
 
 - Do not add hidden local files such as SQLite databases to the runtime path
   without documenting backup, cleanup, and `.gitignore` behavior.
-- Do not log or persist `OPENAI_API_KEY`, raw Authorization headers, or full
+- Do not log or persist `AI_API_KEY`, raw Authorization headers, or full
   environment dumps.
 - Do not let persistence failures break the basic stateless answer flow unless
   persistence is required for the requested feature.

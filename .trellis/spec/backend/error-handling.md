@@ -7,7 +7,7 @@
 ## Overview
 
 The backend uses FastAPI exception handlers, local `try`/`except` blocks around
-route and LLM boundaries, and JSON responses. Errors are logged through
+route and AI/model boundaries, and JSON responses. Errors are logged through
 standard-library `logging` helpers in `app/logging.py`, and API failures return
 OCS-friendly JSON instead of FastAPI's default `detail` response when the route
 is OCS-facing.
@@ -24,8 +24,9 @@ No custom error classes are defined.
 
 Current error categories:
 
-- Missing configuration: `LLM_MODEL`/`OPENAI_MODEL` has no hard-coded default.
-  LLM calls fail into the answer fallback if the model is not configured.
+- Missing configuration: `AI_TEXT_MODEL` and `AI_VISION_MODEL` have no hard-coded
+  defaults. Text calls require `AI_TEXT_MODEL`; image calls require
+  `AI_VISION_MODEL`. Missing model configuration fails into the answer fallback.
 - Bad request JSON or schema validation: FastAPI/Pydantic raises
   `RequestValidationError`, which `app/main.py` converts to OCS error JSON.
   `/search` manually parses raw request bytes as JSON first so OCS
@@ -36,11 +37,11 @@ Current error categories:
   `QuestionType.unknown` and continues with the normal HTTP 200 success shape,
   because rejecting OCS plugin lookups as 400 appears to users as a question
   bank connection failure.
-- LLM call or LLM JSON parse failure: `LiteLLMAnswerer.answer()` logs the error
-  and returns an answer fallback rather than raising to the route.
-- Chaoxing image fetch failure: image resolution logs a concise local error,
-  skips the failed image block, and lets the LLM call continue with the
-  remaining attachments or text prompt.
+- Pydantic AI call or structured-output failure: `PydanticAIAnswerer.answer()`
+  logs the error and returns an answer fallback rather than raising to the route.
+- Image fetch failure: image resolution logs a concise local error and returns
+  the answer fallback rather than asking the model to guess without a required
+  image.
 - Chaoxing image downloads intentionally use `verify=False`, so local
   certificate-chain problems should not block protected image conversion.
 - Unexpected route failure: `/search` logs the exception and returns HTTP 500
@@ -59,10 +60,10 @@ Current error categories:
 - Log OCS-facing `RequestValidationError` failures with request diagnostics
   before returning the error shape. Include safe metadata and a bounded body
   preview, but not full request headers.
-- Keep LiteLLM/API failures inside `LiteLLMAnswerer.answer()` so callers receive
-  a fallback `ModelAnswer`.
+- Keep Pydantic AI/API failures inside `PydanticAIAnswerer.answer()` so callers
+  receive a fallback `ModelAnswer`.
 - Keep protected-image fetch failures out of the OCS route boundary. Do not let
-  a Chaoxing 403, timeout, non-image response, or missing `CHAOXING_COOKIE`
+  a Chaoxing 403, timeout, non-image response, or missing required vision model
   produce a FastAPI error response.
 - Use `log_error()` for operational failures.
 - Preserve the route-level catch-all around `/search` because it prevents
@@ -84,7 +85,7 @@ for request/server errors, and:
 {"answer": "<localized unknown answer>", "analysis": "<localized processing error>"}
 ```
 
-inside the internal fallback object returned by `LiteLLMAnswerer.answer()`.
+inside the internal fallback object returned by `PydanticAIAnswerer.answer()`.
 
 Do not change the top-level `/search` success fields without updating
 `ocs_config.json`, the README OCS handler example, and `tests/test_api.py`.
@@ -93,15 +94,15 @@ Do not change the top-level `/search` success fields without updating
 
 ## Common Mistakes
 
-- Do not let malformed model output propagate as a 500 when an answer fallback
-  is acceptable.
+- Do not let model/API/structured-output failures propagate as a 500 when an
+  answer fallback is acceptable.
 - Do not return FastAPI `{"detail": ...}` or HTML error pages from OCS-facing
   API routes.
 - Do not reject unfamiliar OCS `type` labels at the schema boundary. Normalize
   known aliases and fall unknown labels back to `QuestionType.unknown`.
 - Do not expose secrets or full request headers in `msg` values or logs.
-- Do not pass protected Chaoxing image URLs directly to the provider when local
-  resolution failed; skip the image block so provider-side image download errors
-  do not collapse the whole answer into the generic fallback.
+- Do not pass protected image URLs directly to the provider. Download them
+  locally and send bytes as Pydantic AI `BinaryContent`; if local fetch fails,
+  return the answer fallback.
 - Do not change `code` semantics casually; `ocs_config.json` checks `code === 1`
   before using a response.

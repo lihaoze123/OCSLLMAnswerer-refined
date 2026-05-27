@@ -22,8 +22,8 @@ disables Uvicorn access logs to avoid duplicate request lines.
 Current helpers:
 
 - `log_info(msg)`: startup and general operational messages.
-- `log_error(msg)`: LiteLLM/provider failures, JSON parse failures, and
-  unexpected route exceptions.
+- `log_error(msg)`: Pydantic AI/provider failures, structured-output failures,
+  image download failures, and unexpected route exceptions.
 - `log_validation_error(...)`: OCS-facing request validation failures, including
   method/path, client address, content-type, content-length, body size, a short
   body preview, and sanitized validation error details.
@@ -41,9 +41,9 @@ the local runtime:
   logs.
 - `uvicorn.access` is disabled; app request logs are the source of truth for OCS
   request/answer flow.
-- `LiteLLM` and `litellm` are set to `ERROR` to suppress optional-provider
-  startup warnings such as missing `botocore`. Actual model call failures are
-  still logged by `app.llm` through `log_error()`.
+- `openai`, `httpx`, and `pydantic_ai` are set to `ERROR` to suppress noisy
+  third-party logs. Actual model call failures are still logged by `app.llm`
+  through `log_error()`.
 
 ---
 
@@ -77,9 +77,9 @@ default logging format over the app's logging setup.
   plugin "question bank connection failed" reports can be traced to the actual
   payload/content-type/schema issue.
 - The selected answer and short analysis returned to OCS.
-- LiteLLM/provider API errors and model-response parse failures.
-- Chaoxing image download failures, with concise status/reason only and without
-  logging `CHAOXING_COOKIE`.
+- Pydantic AI/provider API errors and structured-output failures.
+- Image download failures, with concise status/reason only and without logging
+  `CHAOXING_COOKIE`.
 - Unexpected route exceptions before returning a JSON error response.
 - Uvicorn server lifecycle/error messages, when emitted, through the same Rich
   handler.
@@ -88,8 +88,8 @@ default logging format over the app's logging setup.
 
 ## What NOT to Log
 
-- Never log `LLM_API_KEY`, `OPENAI_API_KEY`, full environment variables, request
-  headers, `CHAOXING_COOKIE`, or provider credentials.
+- Never log `AI_API_KEY`, full environment variables, request headers,
+  `CHAOXING_COOKIE`, or provider credentials.
 - Do not log full request headers when diagnosing validation failures. Log only
   the specific safe fields needed for local debugging, such as content type and
   content length.

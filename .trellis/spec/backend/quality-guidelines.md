@@ -29,37 +29,35 @@ The configured quality gate is:
   parsed answer/analysis JSON contract.
 - Do not add database, cache, or persistent logging behavior without documenting
   privacy and deployment consequences.
-- Do not replace the LiteLLM gateway path with a provider-specific SDK unless
-  multi-provider compatibility is no longer a requirement.
+- Do not bypass the Pydantic AI gateway with raw provider SDK calls unless the
+  structured-output and fallback contracts are redesigned in the same task.
 
 ---
 
 ## Required Patterns
 
-- Keep provider configuration environment-driven through primary `LLM_*` keys
-  with legacy `OPENAI_*` fallbacks.
+- Keep provider configuration environment-driven through `AI_*` keys. The
+  current supported shape is a single OpenAI-compatible provider with separate
+  text and vision model fields.
 - Keep question-type behavior centralized around `QuestionType`,
   `QUESTION_TYPE_ALIASES`, `TYPE_LABELS`, and `build_special_instruction()`.
   OCS-facing request parsing should accept common English aliases, Chinese type
   labels, and unknown labels without rejecting the lookup.
-- Strip reasoning wrappers and Markdown fences before parsing model JSON. The
-  current code removes `<think>...</think>`, trims fenced `json` blocks,
-  extracts the first JSON object, and validates it as `ModelAnswer`.
+- Use Pydantic AI structured output (`output_type=ModelAnswer`) for model
+  answers instead of hand-written JSON cleanup/parsing.
 - Normalize options before prompting by trimming lines and dropping blank lines.
-- Keep prompt construction compatible with both text-only and image questions:
-  when `title`/`options` contain image URLs, attach them to the user message as
-  Chat Completions `image_url` content blocks; when no images are present, keep
-  the user message content as plain text. Do not download, cache, or OCR images
-  as part of prompt construction. Protected Chaoxing images are the provider
-  boundary exception: resolve them in `app.images`/`app.llm`, not in prompt
-  construction.
+- Keep prompt construction compatible with both text-only and image questions.
+  Text-only requests pass a plain prompt string to Pydantic AI. Image requests
+  use `app.question_images` to preserve ordered text/image parts, download each
+  image through `app.images`, and send local bytes as Pydantic AI
+  `BinaryContent`.
 - Keep `CHAOXING_COOKIE` optional and secret-backed. Use it only for local
   Chaoxing image fetches, never log it, and do not require it for text-only or
   public-image questions.
-- Chaoxing image fetches intentionally use `verify=False` in `app.images` to
-  avoid local campus-network/proxy certificate-chain failures. Keep this scoped
-  to local Chaoxing image downloads; do not disable SSL verification for
-  LiteLLM/OpenAI API calls.
+- Local Chaoxing image fetches intentionally use `verify=False` in `app.images`
+  to avoid local campus-network/proxy certificate-chain failures. Keep this
+  scoped to local Chaoxing image downloads; do not disable SSL verification for
+  Pydantic AI/OpenAI API calls.
 - Parse `/search` request bodies manually as JSON from raw bytes so OCS payloads
   still work when the browser script sends JSON with
   `Content-Type: text/plain;charset=UTF-8`.
@@ -80,8 +78,9 @@ Minimum verification for code changes:
   README install/run instructions together.
 - For `/search` behavior changes, add or update FastAPI `TestClient` tests for
   the OCS request/response contract.
-- For parser changes, add tests for `<think>` cleanup, Markdown fence cleanup,
-  surrounded JSON extraction, and malformed output fallback behavior.
+- For Pydantic AI gateway changes, add tests for model success, missing-model
+  fallback, structured-output fallback, model routing, and multimodal input
+  construction.
 - For prompt changes involving images, add tests that image URLs are extracted
   from both `title` and `options`, adjacent Chinese text is not captured as part
   of the URL, duplicate image URLs are not repeated, and no-image requests still
@@ -97,18 +96,19 @@ Minimum verification for code changes:
   payload?
 - Does it still return `code`, `question`, `answer`, and `analysis` on success?
 - Are API keys and provider settings still environment-based?
-- Are model-output cleanup rules still robust to reasoning tags, Markdown
-  fences, and extra surrounding text?
+- Does Pydantic AI structured output still validate as `ModelAnswer`, and do
+  model/output failures still return the fallback answer?
 - Are errors logged locally but returned to OCS as JSON?
 - Are README and `ocs_config.json` still aligned with route behavior?
 - Did Ruff format/check, ty, and pytest pass?
 
-## Scenario: FastAPI OCS Contract and LiteLLM Gateway
+## Scenario: FastAPI OCS Contract and Pydantic AI Gateway
 
 ### 1. Scope / Trigger
 
 - Trigger: Changes to API routes, request/response schemas, environment
-  variables, LLM gateway calls, or model-output parsing.
+  variables, Pydantic AI gateway calls, image input handling, or structured
+  model output.
 
 ### 2. Signatures
 
@@ -123,16 +123,15 @@ Minimum verification for code changes:
 
 - Request fields: `title: str`, `options: str = ""`,
   `type: QuestionType = "unknown"`.
-- Multimodal prompt behavior: image URLs embedded in `title` or `options` become
-  `{"type": "image_url", "image_url": {"url": "<url-or-data-url>"}}` blocks in
-  the user message content. The original text remains in the prompt. No-image
-  questions keep string user content for text-only provider compatibility.
-- Chaoxing image behavior: URLs whose host is `chaoxing.com` or a subdomain
-  are resolved at the LiteLLM boundary. With `CHAOXING_COOKIE`, the service
-  locally fetches the image using Chaoxing-friendly headers and sends a
-  `data:<content-type>;base64,<payload>` URL to LiteLLM. Without the cookie or
-  when the fetch fails, the Chaoxing image block is skipped and the text prompt
-  continues.
+- Multimodal prompt behavior: image URLs embedded in `title` or `options` are
+  parsed by `app.question_images`, downloaded locally by `app.images`, and
+  inserted as Pydantic AI `BinaryContent` while preserving surrounding text
+  order. No-image questions keep string user content.
+- Image behavior: any image URL in the question makes the request require
+  `AI_VISION_MODEL`. Images are fetched locally with browser-like fallback
+  request strategies, max-size enforcement, and media-type detection. If a
+  required image cannot be fetched/prepared, the answerer returns the fallback
+  answer instead of asking the model to guess without the image.
 - Internal `type` values: `single`, `multiple`, `judgement`, `completion`,
   `unknown`.
 - External OCS `type` input may be a known internal value, a common alias, a
@@ -140,11 +139,11 @@ Minimum verification for code changes:
   to the internal enum and fall unsupported labels back to `unknown`.
 - Success fields: `code: 1`, `question`, `answer`, `analysis`.
 - Error fields: `code: 0`, `msg`.
-- Primary env keys: `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`,
-  `LLM_TIMEOUT`, `LLM_JSON_MODE`, `CHAOXING_COOKIE`, `SERVER_HOST`,
-  `SERVER_PORT`.
-- Legacy fallback env keys: `OPENAI_API_KEY`, `OPENAI_BASE_URL`,
-  `OPENAI_MODEL`, `OPENAI_TIMEOUT`.
+- Primary env keys: `AI_PROVIDER`, `AI_API_KEY`, `AI_BASE_URL`,
+  `AI_TEXT_MODEL`, `AI_VISION_MODEL`, `AI_TIMEOUT`, `AI_TEMPERATURE`,
+  `CHAOXING_COOKIE`, `SERVER_HOST`, `SERVER_PORT`.
+- Legacy `LLM_*` / `OPENAI_*` provider keys are intentionally not fallback
+  aliases.
 
 ### 4. Validation & Error Matrix
 
@@ -155,12 +154,13 @@ Minimum verification for code changes:
   `application/json`.
 - Non-JSON body text -> HTTP 400 with `{"code": 0, "msg": ...}`.
 - Invalid JSON/body shape -> HTTP 400 with `{"code": 0, "msg": ...}`.
-- LLM provider failure -> HTTP 200 success shape with fallback answer.
-- Malformed model JSON -> HTTP 200 success shape with fallback answer.
-- Missing `CHAOXING_COOKIE` for Chaoxing image -> skip that image block and
-  continue with the text prompt.
-- Chaoxing image HTTP/network/content-type failure -> log a concise local error,
-  skip that image block, and continue with the text prompt.
+- AI provider failure -> HTTP 200 success shape with fallback answer.
+- Pydantic AI structured output failure/retry exhaustion -> HTTP 200 success
+  shape with fallback answer.
+- Image question with missing `AI_VISION_MODEL` -> HTTP 200 success shape with
+  fallback answer.
+- Image HTTP/network/content-type failure -> log a concise local error and
+  return the fallback answer.
 - Chaoxing image certificate verification failure -> should not occur because
   local Chaoxing image fetches use `verify=False`.
 
@@ -171,10 +171,10 @@ Minimum verification for code changes:
 - Base: options are omitted or blank; service prompts with an empty options
   string and still returns a valid OCS shape.
 - Image: title/options contain `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, or
-  `.bmp` URLs; prompt construction preserves the text and adds image content
-  blocks for vision-capable models.
-- Protected image: Chaoxing image URL plus `CHAOXING_COOKIE` resolves to a
-  base64 data URL before LiteLLM is called, avoiding provider-side 403 fetches.
+  `.bmp` URLs; prompt construction preserves the text and adds local
+  `BinaryContent` for vision-capable models.
+- Protected image: Chaoxing image URL plus `CHAOXING_COOKIE` is fetched locally
+  before Pydantic AI is called, avoiding provider-side 403 fetches.
 - Compatibility: OCS sends JSON text as `text/plain;charset=UTF-8`; the service
   parses the raw body and validates it as `SearchRequest`.
 - Bad-but-tolerated: `type: "essay"` is accepted and handled as unknown so OCS
@@ -188,15 +188,14 @@ Minimum verification for code changes:
   type fallback.
 - Compatibility tests for `text/plain;charset=UTF-8` JSON payloads and malformed
   non-JSON text.
-- Parser tests for reasoning tags, Markdown fences, surrounded JSON, and
-  fallback behavior.
-- LiteLLM gateway tests with mocked `completion()` and mocked JSON mode
-  capability detection.
+- Pydantic AI gateway tests with mocked agent factory for success and fallback.
+- Model routing tests for text vs. vision model selection.
 - Prompt tests asserting no-image content remains a string and image-question
-  content includes the expected `image_url` blocks.
-- Image resolver tests for Chaoxing host detection, data URL encoding,
-  successful cookie-backed fetch mapping, missing-cookie skip, failed-fetch
-  skip, and non-Chaoxing URL passthrough.
+  prompts include the image count instruction.
+- Image parser tests for adjacent Chinese text, duplicate URLs, spans, and
+  ordered text/image parts.
+- Image downloader tests for known-domain referers, Chaoxing cookie headers,
+  SSL verification scoping, media-type magic-byte detection, and size limits.
 
 ### 7. Wrong vs Correct
 
@@ -220,17 +219,18 @@ internal validation.
 #### Wrong
 
 ```python
-{"type": "image_url", "image_url": {"url": chaoxing_url}}
+ImageUrl(url=chaoxing_url)
 ```
 
-This lets the model provider download a protected Chaoxing URL without the local
-browser session and can fail with HTTP 403.
+This lets the model provider download a protected URL without the local browser
+session and can fail with HTTP 403.
 
 #### Correct
 
 ```python
-{"type": "image_url", "image_url": {"url": data_url}}
+BinaryContent(data=image.data, media_type=image.media_type)
 ```
 
-Resolve Chaoxing URLs locally with `CHAOXING_COOKIE` at the LiteLLM boundary, or
-skip the image block when it cannot be fetched.
+Download image URLs locally, preserve text/image ordering, and send local bytes
+to Pydantic AI. If a required image cannot be fetched, return the fallback
+answer instead of silently skipping it.

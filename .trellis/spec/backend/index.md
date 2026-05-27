@@ -27,7 +27,7 @@ This directory contains guidelines for backend development. Fill in each file wi
 Before editing backend code in this project:
 
 1. Read [Directory Structure](./directory-structure.md) to confirm where the
-   existing single-file Flask app owns the behavior you are changing.
+   compact FastAPI backend owns the behavior you are changing.
 2. Read [Quality Guidelines](./quality-guidelines.md) for the OCS response
    contract and verification expectations.
 3. Read [Error Handling](./error-handling.md) before changing request parsing,
