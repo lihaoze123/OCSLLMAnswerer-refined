@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 7
-- **Last Active**: 2026-05-27
+- **Total Sessions**: 8
+- **Last Active**: 2026-06-27
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~241 | Active |
+| `journal-1.md` | ~274 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 8 | 2026-06-27 | Fix AI event loop failure | `d2618ec` | `master` |
 | 7 | 2026-05-27 | Refactor AI and image input architecture | `09adbbe`, `4932d41` | `master` |
 | 6 | 2026-05-22 | Chaoxing image download support | `7ea504b`, `683d8b0` | `master` |
 | 5 | 2026-05-21 | Support image question prompts | `edf723d`, `c51d02e` | `master` |

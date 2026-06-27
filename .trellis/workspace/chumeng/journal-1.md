@@ -239,3 +239,36 @@ Migrated AI answering from LiteLLM to Pydantic AI, rebuilt image URL parsing and
 ### Next Steps
 
 - None - task complete
+
+
+## Session 8: Fix AI event loop failure
+
+**Date**: 2026-06-27
+**Task**: Fix AI event loop failure
+**Branch**: `master`
+
+### Summary
+
+Converted the FastAPI /search AI answer path to async Pydantic AI calls, preserved fallback behavior, added regression coverage, updated backend guidance, and verified the quality gate.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d2618ec` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
