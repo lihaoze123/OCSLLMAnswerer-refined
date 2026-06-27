@@ -272,3 +272,36 @@ Converted the FastAPI /search AI answer path to async Pydantic AI calls, preserv
 ### Next Steps
 
 - None - task complete
+
+
+## Session 9: Fix nested JSON answer output
+
+**Date**: 2026-06-27
+**Task**: Fix nested JSON answer output
+**Branch**: `master`
+
+### Summary
+
+Normalized nested JSON objects returned inside ModelAnswer.answer so OCS receives the plain answer text, added API and LLM regression coverage, updated backend guidance, and verified the full quality gate.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `378e7c1` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
