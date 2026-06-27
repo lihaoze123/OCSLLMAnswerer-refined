@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from pydantic import SecretStr
-from pydantic_ai import BinaryContent
+from pydantic_ai import Agent, BinaryContent, PromptedOutput
 
 from app.config import Settings
 from app.images import DownloadedImage, ImageDownloader
@@ -12,6 +12,7 @@ from app.llm import (
     FALLBACK_ANSWER,
     PydanticAIAnswerer,
     build_agent_input,
+    create_answer_agent,
     normalize_model_answer,
     normalize_openai_model_name,
     select_model_name,
@@ -76,6 +77,13 @@ def test_answerer_calls_pydantic_ai_agent_without_network() -> None:
     assert "题目: 题目" in captured["user_prompt"]
     assert captured["model_settings"]["temperature"] == 0.3
     assert captured["model_settings"]["timeout"] == 30.0
+
+
+def test_answer_agent_uses_prompted_output() -> None:
+    agent = create_answer_agent("test")
+
+    assert isinstance(agent, Agent)
+    assert isinstance(agent.output_type, PromptedOutput)
 
 
 def test_answerer_unwraps_nested_json_answer_field() -> None:

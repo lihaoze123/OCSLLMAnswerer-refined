@@ -43,8 +43,12 @@ The configured quality gate is:
   `QUESTION_TYPE_ALIASES`, `TYPE_LABELS`, and `build_special_instruction()`.
   OCS-facing request parsing should accept common English aliases, Chinese type
   labels, and unknown labels without rejecting the lookup.
-- Use Pydantic AI structured output (`output_type=ModelAnswer`) for model
-  answers instead of hand-written JSON cleanup/parsing.
+- Use Pydantic AI prompted structured output
+  (`output_type=PromptedOutput(ModelAnswer)`) for model answers instead of
+  hand-written JSON cleanup/parsing. Do not pass bare `ModelAnswer` as the
+  output type in this app: Pydantic AI maps a bare Pydantic model to tool-based
+  output, which can force `tool_choice` and break DeepSeek thinking-capable
+  models such as `deepseek-v4-pro`.
 - Normalize nested structured answers at the Pydantic AI gateway boundary. Some
   OpenAI-compatible providers may return a valid `ModelAnswer` whose `answer`
   field is itself a JSON object string like
@@ -107,6 +111,8 @@ Minimum verification for code changes:
 - Are API keys and provider settings still environment-based?
 - Does Pydantic AI structured output still validate as `ModelAnswer`, and do
   model/output failures still return the fallback answer?
+- Does the Pydantic AI answer agent still use `PromptedOutput(ModelAnswer)` so
+  DeepSeek thinking models are not sent forced output-tool choices?
 - Are errors logged locally but returned to OCS as JSON?
 - Are README and `ocs_config.json` still aligned with route behavior?
 - Did Ruff format/check, ty, and pytest pass?
@@ -224,6 +230,30 @@ return {"code": 0, "msg": "..."}
 
 This preserves the OCS-facing contract even though Pydantic performs the
 internal validation.
+
+#### Wrong
+
+```python
+return Agent(model, output_type=ModelAnswer)
+```
+
+This makes Pydantic AI use tool-based structured output for the answer schema.
+For DeepSeek thinking-capable models, that may send an unsupported forced
+`tool_choice` and cause the AI gateway to return the fallback answer.
+
+#### Correct
+
+```python
+return Agent(
+    model,
+    output_type=PromptedOutput(ModelAnswer),
+    instructions=SYSTEM_INSTRUCTIONS,
+    retries=2,
+)
+```
+
+This keeps Pydantic AI validation while avoiding output-tool `tool_choice`
+requests that DeepSeek thinking mode rejects.
 
 #### Wrong
 

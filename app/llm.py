@@ -2,7 +2,7 @@ import json
 from collections.abc import Callable, Sequence
 from typing import Any, Protocol
 
-from pydantic_ai import Agent, BinaryContent, ModelSettings
+from pydantic_ai import Agent, BinaryContent, ModelSettings, PromptedOutput
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
@@ -75,7 +75,7 @@ class PydanticAIAnswerer:
 def create_answer_agent(model: Any) -> AgentRunner:
     return Agent(
         model,
-        output_type=ModelAnswer,
+        output_type=PromptedOutput(ModelAnswer),
         instructions=SYSTEM_INSTRUCTIONS,
         retries=2,
     )
