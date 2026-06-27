@@ -305,3 +305,36 @@ Normalized nested JSON objects returned inside ModelAnswer.answer so OCS receive
 ### Next Steps
 
 - None - task complete
+
+
+## Session 10: Fix DeepSeek thinking tool choice
+
+**Date**: 2026-06-27
+**Task**: Fix DeepSeek thinking tool choice
+**Branch**: `master`
+
+### Summary
+
+Switched the Pydantic AI answer schema to prompted structured output so DeepSeek thinking-capable models are not sent forced output-tool choices; added a regression test and updated backend guidance.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `040f447` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
