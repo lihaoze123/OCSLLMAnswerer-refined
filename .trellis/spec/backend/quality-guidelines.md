@@ -45,6 +45,11 @@ The configured quality gate is:
   labels, and unknown labels without rejecting the lookup.
 - Use Pydantic AI structured output (`output_type=ModelAnswer`) for model
   answers instead of hand-written JSON cleanup/parsing.
+- Normalize nested structured answers at the Pydantic AI gateway boundary. Some
+  OpenAI-compatible providers may return a valid `ModelAnswer` whose `answer`
+  field is itself a JSON object string like
+  `{"answer":"对","analysis":"..."}`. Before `/search` logs or returns the
+  answer, unwrap that nested object so OCS receives only the final answer text.
 - Keep the live `/search` AI path async end-to-end. `app.main` awaits
   `Answerer.answer()`, and `app.llm.PydanticAIAnswerer` must call
   `await agent.run(...)`. Do not call Pydantic AI `run_sync(...)` from the
@@ -258,3 +263,20 @@ result = await agent.run(user_prompt)
 Keep the route, answerer, and Pydantic AI call async so provider or
 structured-output failures flow into the existing fallback answer instead of an
 event-loop runtime error.
+
+#### Wrong
+
+```json
+{"code": 1, "answer": "{\"answer\":\"对\",\"analysis\":\"...\"}", "analysis": "..."}
+```
+
+This leaks the model's nested JSON into OCS as the selected answer.
+
+#### Correct
+
+```json
+{"code": 1, "answer": "对", "analysis": "..."}
+```
+
+If `ModelAnswer.answer` contains a JSON object with `answer` and `analysis`,
+normalize it in `app.llm` before logging or returning the response.

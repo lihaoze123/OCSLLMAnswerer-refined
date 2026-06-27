@@ -1,3 +1,4 @@
+import json
 from collections.abc import Callable, Sequence
 from typing import Any, Protocol
 
@@ -65,9 +66,7 @@ class PydanticAIAnswerer:
             ),
         )
         output = result.output
-        if not isinstance(output, ModelAnswer):
-            return ModelAnswer.model_validate(output)
-        return output
+        return normalize_model_answer(output)
 
     def _download_images(self, image_urls: list[str]) -> dict[str, DownloadedImage]:
         return {url: self._image_downloader.download(url) for url in image_urls}
@@ -80,6 +79,28 @@ def create_answer_agent(model: Any) -> AgentRunner:
         instructions=SYSTEM_INSTRUCTIONS,
         retries=2,
     )
+
+
+def normalize_model_answer(output: Any) -> ModelAnswer:
+    answer = output if isinstance(output, ModelAnswer) else ModelAnswer.model_validate(output)
+    nested_answer = parse_nested_model_answer(answer.answer)
+    return nested_answer or answer
+
+
+def parse_nested_model_answer(answer: str) -> ModelAnswer | None:
+    text = answer.strip()
+    if not (text.startswith("{") and text.endswith("}")):
+        return None
+
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+
+    if not isinstance(data, dict) or not {"answer", "analysis"} <= data.keys():
+        return None
+
+    return ModelAnswer.model_validate(data)
 
 
 def select_model_name(settings: Settings, *, has_images: bool) -> str:

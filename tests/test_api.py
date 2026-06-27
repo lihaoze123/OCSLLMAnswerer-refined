@@ -106,6 +106,46 @@ def test_search_awaits_pydantic_ai_answerer_without_event_loop_fallback() -> Non
     assert captured["model_settings"]["timeout"] == 30.0
 
 
+def test_search_unwraps_nested_json_answer_field() -> None:
+    class FakeAgent:
+        async def run(
+            self,
+            user_prompt: str | Sequence[Any] | None = None,
+            *,
+            model_settings: object = None,
+        ) -> object:
+            return SimpleNamespace(
+                output=ModelAnswer(
+                    answer='{"answer":"对","analysis":"二属性关系模式一定满足 BCNF。"}',
+                    analysis="outer analysis should not be returned",
+                )
+            )
+
+    settings = Settings(
+        ai_api_key=SecretStr("test-key"),
+        ai_text_model="test-model",
+    )
+    answerer = PydanticAIAnswerer(settings, agent_factory=lambda model: FakeAgent())
+    client = TestClient(create_app(settings=settings, answerer=answerer))
+
+    response = client.post(
+        "/search",
+        json={
+            "title": "任何一个只包含两个属性的关系模式一定满足BCNF。",
+            "options": "对\n错",
+            "type": "judgement",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "code": 1,
+        "question": "任何一个只包含两个属性的关系模式一定满足BCNF。",
+        "answer": "对",
+        "analysis": "二属性关系模式一定满足 BCNF。",
+    }
+
+
 def test_search_preserves_ai_failure_fallback_success_shape() -> None:
     settings = Settings(ai_text_model=None)
     app = create_app(settings=settings)

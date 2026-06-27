@@ -12,6 +12,7 @@ from app.llm import (
     FALLBACK_ANSWER,
     PydanticAIAnswerer,
     build_agent_input,
+    normalize_model_answer,
     normalize_openai_model_name,
     select_model_name,
 )
@@ -75,6 +76,38 @@ def test_answerer_calls_pydantic_ai_agent_without_network() -> None:
     assert "题目: 题目" in captured["user_prompt"]
     assert captured["model_settings"]["temperature"] == 0.3
     assert captured["model_settings"]["timeout"] == 30.0
+
+
+def test_answerer_unwraps_nested_json_answer_field() -> None:
+    class FakeAgent:
+        async def run(
+            self,
+            user_prompt: str | Sequence[Any] | None = None,
+            *,
+            model_settings: object = None,
+        ) -> object:
+            return SimpleNamespace(
+                output=ModelAnswer(
+                    answer='{"answer":"对","analysis":"二属性关系模式一定满足 BCNF。"}',
+                    analysis="outer analysis should not be returned",
+                )
+            )
+
+    answer = run_answer(
+        PydanticAIAnswerer(
+            make_settings(),
+            agent_factory=lambda model: FakeAgent(),
+        ),
+        make_payload(title="任何一个只包含两个属性的关系模式一定满足BCNF。", options="对\n错"),
+    )
+
+    assert answer == ModelAnswer(answer="对", analysis="二属性关系模式一定满足 BCNF。")
+
+
+def test_normalize_model_answer_preserves_plain_answer() -> None:
+    answer = normalize_model_answer(ModelAnswer(answer="A#C", analysis="ok"))
+
+    assert answer == ModelAnswer(answer="A#C", analysis="ok")
 
 
 def test_image_question_requires_vision_model() -> None:
