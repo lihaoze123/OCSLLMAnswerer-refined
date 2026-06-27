@@ -56,7 +56,7 @@ def create_app(settings: Settings | None = None, answerer: Answerer | None = Non
         payload = await parse_search_request(request)
         try:
             log_request(payload.title, payload.options, payload.type_label)
-            result = request.app.state.answerer.answer(payload)
+            result = await request.app.state.answerer.answer(payload)
             log_response(result.answer, result.analysis)
             return SearchResponse(
                 question=payload.title,

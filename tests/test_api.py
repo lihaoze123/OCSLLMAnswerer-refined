@@ -1,4 +1,7 @@
 import json
+from collections.abc import Sequence
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -6,6 +9,7 @@ from pydantic import SecretStr
 
 from app import main as app_main
 from app.config import Settings
+from app.llm import PydanticAIAnswerer
 from app.main import create_app
 from app.schemas import ModelAnswer, QuestionType, SearchRequest
 
@@ -14,7 +18,7 @@ class FakeAnswerer:
     def __init__(self) -> None:
         self.payloads: list[SearchRequest] = []
 
-    def answer(self, payload: SearchRequest) -> ModelAnswer:
+    async def answer(self, payload: SearchRequest) -> ModelAnswer:
         self.payloads.append(payload)
         return ModelAnswer(answer="A", analysis="测试解析")
 
@@ -66,6 +70,40 @@ def test_search_preserves_success_contract_and_normalizes_options() -> None:
         "analysis": "测试解析",
     }
     assert answerer.payloads[0].options == "A. 选项A\nB. 选项B"
+
+
+def test_search_awaits_pydantic_ai_answerer_without_event_loop_fallback() -> None:
+    captured: dict[str, Any] = {}
+
+    class FakeAgent:
+        async def run(
+            self,
+            user_prompt: str | Sequence[Any] | None = None,
+            *,
+            model_settings: object = None,
+        ) -> object:
+            captured["user_prompt"] = user_prompt
+            captured["model_settings"] = model_settings
+            return SimpleNamespace(output=ModelAnswer(answer="B", analysis="async ok"))
+
+    settings = Settings(
+        ai_api_key=SecretStr("test-key"),
+        ai_text_model="test-model",
+    )
+    answerer = PydanticAIAnswerer(settings, agent_factory=lambda model: FakeAgent())
+    client = TestClient(create_app(settings=settings, answerer=answerer))
+
+    response = client.post("/search", json={"title": "题目", "options": "", "type": "single"})
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "code": 1,
+        "question": "题目",
+        "answer": "B",
+        "analysis": "async ok",
+    }
+    assert "题目: 题目" in captured["user_prompt"]
+    assert captured["model_settings"]["timeout"] == 30.0
 
 
 def test_search_preserves_ai_failure_fallback_success_shape() -> None:

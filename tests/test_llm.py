@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Sequence
 from types import SimpleNamespace
 from typing import Any
@@ -38,8 +39,12 @@ def make_settings(
     )
 
 
+def run_answer(answerer: PydanticAIAnswerer, payload: SearchRequest) -> ModelAnswer:
+    return asyncio.run(answerer.answer(payload))
+
+
 def test_answerer_returns_fallback_when_text_model_is_missing() -> None:
-    answer = PydanticAIAnswerer(make_settings(text_model=None)).answer(make_payload())
+    answer = run_answer(PydanticAIAnswerer(make_settings(text_model=None)), make_payload())
 
     assert answer == FALLBACK_ANSWER
 
@@ -48,7 +53,7 @@ def test_answerer_calls_pydantic_ai_agent_without_network() -> None:
     captured: dict[str, Any] = {}
 
     class FakeAgent:
-        def run_sync(
+        async def run(
             self,
             user_prompt: str | Sequence[Any] | None = None,
             *,
@@ -58,10 +63,13 @@ def test_answerer_calls_pydantic_ai_agent_without_network() -> None:
             captured["model_settings"] = model_settings
             return SimpleNamespace(output=ModelAnswer(answer="A", analysis="ok"))
 
-    answer = PydanticAIAnswerer(
-        make_settings(),
-        agent_factory=lambda model: FakeAgent(),
-    ).answer(make_payload())
+    answer = run_answer(
+        PydanticAIAnswerer(
+            make_settings(),
+            agent_factory=lambda model: FakeAgent(),
+        ),
+        make_payload(),
+    )
 
     assert answer.answer == "A"
     assert "题目: 题目" in captured["user_prompt"]
@@ -72,7 +80,7 @@ def test_answerer_calls_pydantic_ai_agent_without_network() -> None:
 def test_image_question_requires_vision_model() -> None:
     payload = make_payload(title="题目 https://example.com/table.png")
 
-    answer = PydanticAIAnswerer(make_settings(vision_model=None)).answer(payload)
+    answer = run_answer(PydanticAIAnswerer(make_settings(vision_model=None)), payload)
 
     assert answer == FALLBACK_ANSWER
 
@@ -81,7 +89,7 @@ def test_image_question_downloads_images_and_uses_binary_content() -> None:
     captured: dict[str, Any] = {}
 
     class FakeAgent:
-        def run_sync(
+        async def run(
             self,
             user_prompt: str | Sequence[Any] | None = None,
             *,
@@ -96,11 +104,14 @@ def test_image_question_downloads_images_and_uses_binary_content() -> None:
             return DownloadedImage(data=b"image-bytes", media_type="image/png")
 
     payload = make_payload(title="题目 https://example.com/table.png求答案")
-    answer = PydanticAIAnswerer(
-        make_settings(),
-        image_downloader=FakeDownloader(),
-        agent_factory=lambda model: FakeAgent(),
-    ).answer(payload)
+    answer = run_answer(
+        PydanticAIAnswerer(
+            make_settings(),
+            image_downloader=FakeDownloader(),
+            agent_factory=lambda model: FakeAgent(),
+        ),
+        payload,
+    )
 
     assert answer.answer == "A"
     assert captured["downloaded"] == ["https://example.com/table.png"]

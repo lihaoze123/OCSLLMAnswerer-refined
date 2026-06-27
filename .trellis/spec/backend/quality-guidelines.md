@@ -45,6 +45,10 @@ The configured quality gate is:
   labels, and unknown labels without rejecting the lookup.
 - Use Pydantic AI structured output (`output_type=ModelAnswer`) for model
   answers instead of hand-written JSON cleanup/parsing.
+- Keep the live `/search` AI path async end-to-end. `app.main` awaits
+  `Answerer.answer()`, and `app.llm.PydanticAIAnswerer` must call
+  `await agent.run(...)`. Do not call Pydantic AI `run_sync(...)` from the
+  FastAPI request path because the server already has an event loop running.
 - Normalize options before prompting by trimming lines and dropping blank lines.
 - Keep prompt construction compatible with both text-only and image questions.
   Text-only requests pass a plain prompt string to Pydantic AI. Image requests
@@ -234,3 +238,23 @@ BinaryContent(data=image.data, media_type=image.media_type)
 Download image URLs locally, preserve text/image ordering, and send local bytes
 to Pydantic AI. If a required image cannot be fetched, return the fallback
 answer instead of silently skipping it.
+
+#### Wrong
+
+```python
+result = agent.run_sync(user_prompt)
+```
+
+Calling Pydantic AI's synchronous runner from `/search` can fail with
+`This event loop is already running` because FastAPI is already executing inside
+an event loop.
+
+#### Correct
+
+```python
+result = await agent.run(user_prompt)
+```
+
+Keep the route, answerer, and Pydantic AI call async so provider or
+structured-output failures flow into the existing fallback answer instead of an
+event-loop runtime error.

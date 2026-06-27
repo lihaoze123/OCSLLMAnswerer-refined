@@ -17,11 +17,11 @@ DUMMY_API_KEY = "not-needed"
 
 
 class Answerer(Protocol):
-    def answer(self, payload: SearchRequest) -> ModelAnswer: ...
+    async def answer(self, payload: SearchRequest) -> ModelAnswer: ...
 
 
 class AgentRunner(Protocol):
-    def run_sync(
+    async def run(
         self,
         user_prompt: str | Sequence[Any] | None = None,
         *,
@@ -44,20 +44,20 @@ class PydanticAIAnswerer:
         self._image_downloader = image_downloader or ImageDownloader(settings.chaoxing_cookie_value)
         self._agent_factory = agent_factory or create_answer_agent
 
-    def answer(self, payload: SearchRequest) -> ModelAnswer:
+    async def answer(self, payload: SearchRequest) -> ModelAnswer:
         try:
-            return self._run_agent(payload)
+            return await self._run_agent(payload)
         except Exception as exc:
             log_error(f"AI 调用或结构化输出失败: {exc}")
             return FALLBACK_ANSWER
 
-    def _run_agent(self, payload: SearchRequest) -> ModelAnswer:
+    async def _run_agent(self, payload: SearchRequest) -> ModelAnswer:
         image_urls = extract_image_urls(payload.title, payload.options)
         model_name = select_model_name(self._settings, has_images=bool(image_urls))
         images_by_url = self._download_images(image_urls)
         model = build_model(self._settings, model_name)
         agent = self._agent_factory(model)
-        result = agent.run_sync(
+        result = await agent.run(
             build_agent_input(payload, images_by_url),
             model_settings=ModelSettings(
                 temperature=self._settings.ai_temperature,
